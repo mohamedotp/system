@@ -1,0 +1,585 @@
+{
+    "name": "WhatsApp AI Multi-Store SaaS Complete",
+    "nodes": [
+        {
+            "parameters": {
+                "path": "whatsapp-ai",
+                "httpMethod": "POST"
+            },
+            "id": "1",
+            "name": "WhatsApp Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                200,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "functionCode": "const entry=$json.entry[0].changes[0].value.messages[0];\nreturn [{json:{phone:entry.from,message:entry.text.body}}];"
+            },
+            "id": "2",
+            "name": "Extract Message",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                400,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "select",
+                "schema": "public",
+                "table": "stores",
+                "columns": "*"
+            },
+            "id": "3",
+            "name": "Get Stores",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                600,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "functionCode": "const store=items[0].json.find(s=>s.whatsapp_phone===$json.phone);\nreturn [{json:{store_id:store?store.id:null,phone:$json.phone,message:$json.message}}];"
+            },
+            "id": "4",
+            "name": "Identify Store",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                800,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "select",
+                "schema": "public",
+                "table": "customers",
+                "columns": "*",
+                "where": "phone = {{ $json.phone }} AND store_id = {{ $json.store_id }}"
+            },
+            "id": "5",
+            "name": "Find Customer",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                1000,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "functionCode": "if(items.length===0){return [{json:{store_id:$json.store_id,phone:$json.phone,customer_id:null}}];}else{return [{json:{store_id:$json.store_id,phone:$json.phone,customer_id:items[0].json.id}}];}"
+            },
+            "id": "6",
+            "name": "Check/Create Customer Placeholder",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                1200,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an AI assistant for a multi-store SaaS e-commerce platform. Detect intent (product_search, create_order, update_order, cancel_order) and return JSON only {intent, product_name, quantity, order_id}."
+                    },
+                    {
+                        "role": "user",
+                        "content": "={{$json.message}}"
+                    }
+                ]
+            },
+            "id": "7",
+            "name": "AI Intent Detection",
+            "type": "n8n-nodes-base.openAi",
+            "typeVersion": 1,
+            "position": [
+                1400,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "functionCode": "const data=JSON.parse($json.choices[0].message.content);\nreturn [{json:{...data,store_id:$json.store_id,phone:$json.phone,customer_id:$json.customer_id}}];"
+            },
+            "id": "8",
+            "name": "Parse AI JSON",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                1600,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{$json.intent}}",
+                            "operation": "equal",
+                            "value2": "product_search"
+                        }
+                    ]
+                }
+            },
+            "id": "9",
+            "name": "Is Product Search?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                1800,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "query",
+                "query": "select *, embedding <-> :vector as distance from products where store_id = :store_id order by distance limit 3",
+                "options": {
+                    "parametersUi": [
+                        {
+                            "name": "vector",
+                            "value": "={{$node[\"AI Intent Detection\"].json.message_embedding}}"
+                        },
+                        {
+                            "name": "store_id",
+                            "value": "={{$json.store_id}}"
+                        }
+                    ]
+                }
+            },
+            "id": "10",
+            "name": "Vector Search Products",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                2000,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "functionCode": "const p=items[0].json;\nreturn [{json:{reply:`المنتج ${p.name} متوفر بسعر ${p.price} ومقاسات: ${p.sizes}`}}];"
+            },
+            "id": "11",
+            "name": "Build Product Reply",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                2200,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://graph.facebook.com/v19.0/YOUR_PHONE_ID/messages",
+                "method": "POST",
+                "authentication": "headerAuth",
+                "sendBody": true,
+                "bodyParametersUi": {
+                    "parameter": [
+                        {
+                            "name": "messaging_product",
+                            "value": "whatsapp"
+                        },
+                        {
+                            "name": "to",
+                            "value": "={{$json.phone}}"
+                        },
+                        {
+                            "name": "type",
+                            "value": "text"
+                        },
+                        {
+                            "name": "text",
+                            "value": "={{JSON.stringify({body:$json.reply})}}"
+                        }
+                    ]
+                }
+            },
+            "id": "12",
+            "name": "Send WhatsApp Reply",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                2400,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "select",
+                "schema": "public",
+                "table": "orders",
+                "columns": "*",
+                "where": "id = {{ $json.order_id }}"
+            },
+            "id": "13",
+            "name": "Fetch Order",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                2000,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "orders",
+                "columns": [
+                    "store_id",
+                    "customer_id",
+                    "product_id",
+                    "quantity",
+                    "status",
+                    "total_price"
+                ],
+                "values": [
+                    {
+                        "name": "store_id",
+                        "value": "={{$json.store_id}}"
+                    },
+                    {
+                        "name": "customer_id",
+                        "value": "={{$json.customer_id}}"
+                    },
+                    {
+                        "name": "product_id",
+                        "value": "={{$json.product_id}}"
+                    },
+                    {
+                        "name": "quantity",
+                        "value": "={{$json.quantity}}"
+                    },
+                    {
+                        "name": "status",
+                        "value": "pending"
+                    },
+                    {
+                        "name": "total_price",
+                        "value": "={{$json.total_price}}"
+                    }
+                ]
+            },
+            "id": "14",
+            "name": "Create Order",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                2200,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "update",
+                "schema": "public",
+                "table": "orders",
+                "updateFields": {
+                    "quantity": "={{$json.quantity}}",
+                    "product_id": "={{$json.product_id}}",
+                    "total_price": "={{$json.total_price}}",
+                    "status": "pending"
+                },
+                "where": "id = {{ $json.order_id }}"
+            },
+            "id": "15",
+            "name": "Update Order",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                2400,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "update",
+                "schema": "public",
+                "table": "orders",
+                "updateFields": {
+                    "status": "cancelled"
+                },
+                "where": "id = {{ $json.order_id }}"
+            },
+            "id": "16",
+            "name": "Cancel Order",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                2600,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "public",
+                "table": "chat_logs",
+                "columns": [
+                    "store_id",
+                    "customer_id",
+                    "message",
+                    "response",
+                    "timestamp"
+                ],
+                "values": [
+                    {
+                        "name": "store_id",
+                        "value": "={{$json.store_id}}"
+                    },
+                    {
+                        "name": "customer_id",
+                        "value": "={{$json.customer_id}}"
+                    },
+                    {
+                        "name": "message",
+                        "value": "={{$json.message}}"
+                    },
+                    {
+                        "name": "response",
+                        "value": "={{$json.reply}}"
+                    },
+                    {
+                        "name": "timestamp",
+                        "value": "={{$now()}}"
+                    }
+                ]
+            },
+            "id": "17",
+            "name": "Log Conversation",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                2800,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "WhatsApp Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Extract Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extract Message": {
+            "main": [
+                [
+                    {
+                        "node": "Get Stores",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Stores": {
+            "main": [
+                [
+                    {
+                        "node": "Identify Store",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Identify Store": {
+            "main": [
+                [
+                    {
+                        "node": "Find Customer",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Find Customer": {
+            "main": [
+                [
+                    {
+                        "node": "Check/Create Customer Placeholder",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check/Create Customer Placeholder": {
+            "main": [
+                [
+                    {
+                        "node": "AI Intent Detection",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Intent Detection": {
+            "main": [
+                [
+                    {
+                        "node": "Parse AI JSON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse AI JSON": {
+            "main": [
+                [
+                    {
+                        "node": "Is Product Search?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Is Product Search?": {
+            "main": [
+                [
+                    {
+                        "node": "Vector Search Products",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Fetch Order",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Vector Search Products": {
+            "main": [
+                [
+                    {
+                        "node": "Build Product Reply",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build Product Reply": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Reply",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Log Conversation",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Fetch Order": {
+            "main": [
+                [
+                    {
+                        "node": "Update Order",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Cancel Order",
+                        "type": "main",
+                        "index": 1
+                    },
+                    {
+                        "node": "Send WhatsApp Reply",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Log Conversation",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Create Order": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Reply",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Log Conversation",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Update Order": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Reply",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Log Conversation",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Cancel Order": {
+            "main": [
+                [
+                    {
+                        "node": "Send WhatsApp Reply",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Log Conversation",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {}
+}

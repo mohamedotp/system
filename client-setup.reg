@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\aoi-open]
+@="URL:aoi-open Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\aoi-open\shell\open\command]
+@="powershell.exe -NoExit -Command \"Write-Host '--- AOI Protocol Debug Mode ---' -ForegroundColor Cyan; Write-Host '1. Raw Input from Browser:' -ForegroundColor Yellow; Write-Host '%1'; try { $u=[uri]::UnescapeDataString('%1') -replace '^aoi-open[:/]*',''; $u=$u.Trim().Trim('\\\"'); Write-Host '`n2. Decoded Windows Path:' -ForegroundColor Yellow; Write-Host $u; if(Test-Path $u){ Write-Host '`n3. Status: SUCCESS - File Found!' -ForegroundColor Green; Write-Host 'Opening file...'; start explorer $u; sleep 3; exit } else { Write-Host '`n3. Status: ERROR - File NOT Found or Access Denied!' -ForegroundColor Red; Write-Host 'Please check if you can access this path manually in File Explorer.' } } catch { Write-Host '`nCRITICAL ERROR:' -ForegroundColor Red; Write-Host $_.Exception.Message }; Write-Host '`n--- Press any key to close ---'; [void]$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')\""

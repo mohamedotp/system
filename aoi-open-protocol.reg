@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\aoi-open]
+@="URL:aoi-open Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\aoi-open\shell]
+
+[HKEY_CLASSES_ROOT\aoi-open\shell\open]
+
+[HKEY_CLASSES_ROOT\aoi-open\shell\open\command]
+@="powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"E:\\system\\scripts\\open-file.ps1\" \"%1\""

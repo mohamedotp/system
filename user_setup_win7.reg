@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\aoi-open]
+@="URL:aoi-open Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\aoi-open\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\aoi-open\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\aoi-open\shell\open\command]
+@="powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"$u=[System.Uri]::UnescapeDataString('%1'); $p=$u.Replace('aoi-open:','').Replace('N5C','\\').Replace('/','\\').TrimStart('\\'); $f='\\\\' + $p; if(Test-Path $f){ Start-Process $f } else { Start-Process explorer.exe $f }\"" 

@@ -1,0 +1,1 @@
+{"error":"ORA-12560: TNS:protocol adapter error","stack":"Error: ORA-12560: TNS:protocol adapter error\n    at async getConnection2 (file:///E:/mohamed/system/system/lib/oracle.js:27:10)\n    at async run (E:\\mohamed\\system\\system\\dump_cols.js:7:16)"}

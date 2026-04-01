@@ -1,0 +1,5 @@
+﻿                                                                            const res = await fetch("/api/import/updateAnswered", {
+                                                                                method: "POST",
+                                                                                headers: { "Content-Type": "application/json" },
+                                                                                body: JSON.stringify({ docNo: item.DOC_NO }),
+                                                                            });

@@ -248,51 +248,52 @@ export default function TrackingPage() {
             <div className="flex items-start relative group/tree">
                 {/* 1. Node Card Container */}
                 <div className={`relative z-10 p-2 rounded-[38px] transition-all duration-500`}>
-                    <div className={`relative p-8 rounded-[40px] border-2 transition-all duration-500 shadow-xl min-w-[420px] max-w-lg
-                    group hover:scale-105 hover:-translate-y-2 hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)]
+                    <div className={`relative p-5 rounded-[30px] border-2 transition-all duration-500 shadow-lg min-w-[320px] max-w-md
+                    group scale-90 origin-right opacity-90
+                    hover:scale-105 hover:-translate-y-2 hover:shadow-[0_25px_60px_rgba(0,0,0,0.15)] hover:p-8 hover:rounded-[40px] hover:opacity-100
                     bg-white ${config.borderColor} font-cairo`}>
 
                         {/* الشريط الملون الجانبي */}
-                        <div className={`absolute right-0 top-10 bottom-10 w-2.5 rounded-r-[28px] bg-gradient-to-b ${config.color} shadow-lg`} />
+                        <div className={`absolute right-0 top-10 bottom-10 w-2 rounded-r-[28px] bg-gradient-to-b ${config.color} shadow-lg`} />
                         <div className={`absolute inset-0 rounded-[40px] bg-gradient-to-br ${config.color} opacity-[0.02] pointer-events-none`} />
 
                         {/* Header */}
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl transition-transform group-hover:rotate-12 bg-gradient-to-br ${config.color}`}>
+                        <div className="flex items-center justify-between mb-4 group-hover:mb-6 transition-all">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-12 h-12 group-hover:w-14 group-hover:h-14 rounded-2xl flex items-center justify-center text-white shadow-xl transition-all group-hover:rotate-12 bg-gradient-to-br ${config.color}`}>
                                     {(() => {
                                         const Icon = config.icon;
-                                        return <Icon className="w-7 h-7" />;
+                                        return <Icon className="w-6 h-6 group-hover:w-7 group-hover:h-7 transition-all" />;
                                     })()}
                                 </div>
-                                <div className="space-y-1">
-                                    <Badge variant="outline" className="text-[11px] font-black border-slate-200 text-slate-500 h-6 px-3">
+                                <div className="space-y-0.5">
+                                    <Badge variant="outline" className="text-[10px] font-black border-slate-200 text-slate-500 h-5 px-2">
                                         #{node.DOC_NO}
                                     </Badge>
-                                    <Badge className={`${config.badgeColor} border-none text-[12px] font-black px-3 py-1 shadow-sm`}>
+                                    <Badge className={`${config.badgeColor} border-none text-[11px] font-black px-2 py-0.5 shadow-sm`}>
                                         {config.label}
                                     </Badge>
                                 </div>
                             </div>
                             <div className="text-left">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">تاريخ الصدور</p>
-                                <p className="text-[13px] font-black text-slate-700 mt-1">{node.DOC_DATE_STR}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">تاريخ الصدور</p>
+                                <p className="text-[12px] font-black text-slate-700 mt-1">{node.DOC_DATE_STR}</p>
                             </div>
                         </div>
 
                         {/* Subject */}
-                        <div className="mb-6 pr-2">
-                            <div className="flex items-center gap-2 mb-3">
-                                <FileCheck2 className="w-5 h-5 text-slate-400" />
-                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">الموضوع</p>
+                        <div className="mb-4 group-hover:mb-6 pr-1 transition-all">
+                            <div className="flex items-center gap-2 mb-2 group-hover:mb-3">
+                                <FileCheck2 className="w-4 h-4 text-slate-400" />
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">الموضوع</p>
                             </div>
-                            <h3 className="font-extrabold text-slate-900 text-[17px] leading-relaxed line-clamp-2 transition-all group-hover:line-clamp-none bg-slate-50/80 p-4 rounded-2xl border border-slate-100 shadow-inner">
+                            <h3 className="font-extrabold text-slate-900 text-[15px] group-hover:text-[17px] leading-relaxed line-clamp-2 transition-all group-hover:line-clamp-none bg-slate-50/80 p-3 group-hover:p-4 rounded-xl group-hover:rounded-2xl border border-slate-100 shadow-inner">
                                 {node.SUBJECT}
                             </h3>
                         </div>
 
                         {/* Attachments Section */}
-                        
+
 
                         {/* Sender & Receivers */}
                         <div className="space-y-4">
@@ -466,7 +467,7 @@ export default function TrackingPage() {
                         </div>
                     </div>
                     <div className="text-center">
-                        <p className="text-2xl font-black text-slate-900">جاري بناء الخريطة الزمنية</p>
+                        <p className="text-2xl font-black text-slate-900">جاري بناء  خريطة التتبع</p>
                         <p className="text-slate-500 font-bold text-sm mt-2">يتم الآن تجميع كافة التحويلات والردود وتنسيق المسارات...</p>
                     </div>
                 </div>
@@ -572,37 +573,53 @@ export default function TrackingPage() {
             </div>
 
             {/* Tree Section */}
-            <div className="max-w-[1700px] mx-auto px-10 -mt-32 relative z-20 overflow-x-auto custom-scrollbar-h pb-24">
-                <div className="inline-block min-w-full">
-                    <div className="bg-white/90 backdrop-blur-2xl border border-white rounded-[70px] p-24 shadow-[0_60px_120px_rgba(0,0,0,0.08)] relative overflow-hidden">
-                        {/* Dynamic Background Elements */}
-                        <div className="absolute top-12 left-12 flex items-center gap-3 animate-pulse">
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">تحرك للعرض الأفقي وشاهد التفاصيل بالوقوف على الحركة</p>
-                            <Eye className="w-5 h-5 text-slate-300" />
-                        </div>
-                        <div className="absolute bottom-20 right-20 text-[220px] font-black text-slate-50/40 select-none pointer-events-none -z-10 leading-none tracking-tighter">
-                            TRACK
-                        </div>
+            <div className="max-w-[1700px] mx-auto px-10 -mt-32 relative z-20">
 
-                        {/* Render Tree */}
-                        <div className="relative py-12 flex justify-start" dir="rtl">
-                            {treeData.map((root, idx) => (
-                                <TreeNode
-                                    key={root.id}
-                                    node={root}
-                                    isLast={idx === treeData.length - 1}
-                                />
-                            ))}
+                {/* Legend - Floating Bar at Top */}
+                <div className="flex justify-center mb-8">
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white px-10 py-5 rounded-[30px] shadow-2xl flex flex-wrap gap-12 items-center animate-in fade-in slide-in-from-top-4 duration-700">
+                        <div className="flex items-center gap-3 border-l border-slate-200 pl-8 ml-2">
+                            <div className="p-2 bg-blue-500/10 rounded-lg">
+                                <History className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <span className="text-sm font-black text-slate-800 tracking-tight">دليل الرموز للألوان</span>
                         </div>
+                        {Object.entries(TYPE_CONFIG).map(([type, config]) => (
+                            <div key={type} className="group cursor-default flex items-center gap-4 transition-all hover:scale-110">
+                                <div className={`w-4 h-4 rounded-full bg-gradient-to-br ${config.color} shadow-lg ring-4 ring-white transition-transform group-hover:scale-125`} />
+                                <span className="text-sm font-black text-slate-600 group-hover:text-slate-900 transition-colors">{config.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
-                        {/* Legend */}
-                        <div className="mt-48 pt-20 border-t border-slate-100/60 flex flex-wrap gap-10 justify-center">
-                            {Object.entries(TYPE_CONFIG).map(([type, config]) => (
-                                <div key={type} className="group cursor-default flex items-center gap-4 bg-white px-7 py-3 rounded-2xl border border-slate-100 shadow-md hover:shadow-xl transition-all">
-                                    <div className={`w-4 h-4 rounded-full bg-gradient-to-br ${config.color} shadow-lg`} />
-                                    <span className="text-sm font-black text-slate-700">{config.label}</span>
-                                </div>
-                            ))}
+                {/* Tree Section - Native Scrollbar at Top (using rotateX trick) */}
+                <div className="overflow-x-auto custom-scrollbar-h pt-10 pb-0" style={{ transform: 'rotateX(180deg)' }}>
+                    <div className="inline-block min-w-full" style={{ transform: 'rotateX(180deg)' }}>
+                        <div className="bg-white/90 backdrop-blur-2xl border border-white rounded-[70px] p-24 shadow-[0_60px_120px_rgba(0,0,0,0.08)] relative overflow-hidden">
+                            {/* Dynamic Background Elements */}
+                            <div className="absolute top-12 left-12 flex items-center gap-3 animate-pulse">
+                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">تحرك للعرض الأفقي وشاهد التفاصيل بالوقوف على الحركة</p>
+                                <Eye className="w-5 h-5 text-slate-300" />
+                            </div>
+                            <div className="absolute bottom-20 right-20 text-[220px] font-black text-slate-50/40 select-none pointer-events-none -z-10 leading-none tracking-tighter">
+                                TRACK
+                            </div>
+
+
+
+                            {/* Render Tree */}
+                            <div className="relative py-12 flex justify-start" dir="rtl">
+                                {treeData.map((root, idx) => (
+                                    <TreeNode
+                                        key={root.id}
+                                        node={root}
+                                        isLast={idx === treeData.length - 1}
+                                    />
+                                ))}
+                            </div>
+
+
                         </div>
                     </div>
                 </div>

@@ -333,7 +333,7 @@ export default function TemplatesPage() {
                                                             </div>
 
                                                             <div className="flex items-center gap-2">
-                                                                {[938, 181, 1714].includes(user?.empNum) && (
+                                                                {["938", "181", "1714"].includes(user?.empNum?.toString()) && (
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();

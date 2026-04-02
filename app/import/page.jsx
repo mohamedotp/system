@@ -214,14 +214,21 @@ export default function ImportPage() {
                     }
 
                     // استعادة حالة الفلاتر بعد تحميل المستخدم
-                    loadFilterState();
+                    const loadedFilters = loadFilterState();
                     setIsFiltersLoaded(true);
+
+                    // ✅ إذا كان هناك بحث قادم من الرابط، استدعِ البيانات فوراً
+                    if (loadedFilters && loadedFilters.searchQuery) {
+                        fetchData(loadedFilters);
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching user session:", err);
-                // حتى لو فشل تحميل المستخدم، نحاول استعادة الفلاتر
-                loadFilterState();
+                const loadedFilters = loadFilterState();
                 setIsFiltersLoaded(true);
+                if (loadedFilters && loadedFilters.searchQuery) {
+                    fetchData(loadedFilters);
+                }
             }
         };
 
@@ -254,6 +261,42 @@ export default function ImportPage() {
 
     // دالة لاستعادة حالة الفلاتر
     const loadFilterState = () => {
+        // 1. التحقق أولاً من وجود بحث في الرابط (Query Param)
+        if (typeof window !== "undefined") {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlSearch = urlParams.get("search");
+            const urlDate = urlParams.get("date");
+
+            if (urlSearch) {
+                setSearchQuery(urlSearch);
+
+                // إذا كان في تاريخ مرسل، استخدمه كفلتر بداية ونهاية
+                if (urlDate) {
+                    setFromDate(urlDate);
+                    setToDate(urlDate);
+                } else {
+                    setFromDate(""); // تصفير التاريخ لضمان العثور على المكاتبة مهما كان تاريخها
+                    setToDate("");
+                }
+
+                setIncoming(false);
+                setInternal(false);
+                setAnswered(false);
+                setPending(false);
+                setAllPending(false);
+                return {
+                    searchQuery: urlSearch,
+                    fromDate: urlDate || "",
+                    toDate: urlDate || "",
+                    incoming: false,
+                    internal: false,
+                    answered: false,
+                    pending: false,
+                    allPending: false
+                };
+            }
+        }
+
         const savedFilters = localStorage.getItem('importPageFilters');
         if (savedFilters) {
             try {
@@ -490,6 +533,10 @@ export default function ImportPage() {
 
             if (json.success) {
                 toast.success(`تم تحويل المكاتبة إلى ${selectedEmps.length} موظف بنجاح`);
+                if (json.skippedCount > 0) {
+                    const names = json.skippedEmployees.map(e => e.empName).join('، ');
+                    // toast.info(`تم تخطي ${json.skippedCount} موظف موجودين مسبقاً في الشجرة: ${names}`, { duration: 7000 });
+                }
                 setIsTransferring(false);
                 setIsTransferModalOpen(false);
                 setTransferAttachments([]);
@@ -1417,14 +1464,15 @@ export default function ImportPage() {
                                                                         });
                                                                         const json = await res.json();
                                                                         if (json.success) {
-                                                                            toast.success("تم تأكيد الرد بنجاح");
+                                                                            toast.success("تم الرد بنجاح");
+                                                                            fetchData();
                                                                         }
                                                                     } catch {
                                                                         toast.error("فشل تحديث الحالة");
                                                                     }
                                                                 }}
                                                             >
-                                                                <Badge className="bg-green-50 text-green-600 border-none font-black px-4 py-2 rounded-xl cursor-pointer"> تأكيد الرد</Badge>
+                                                                <Badge className="bg-green-50 text-green-600 border-none font-black px-4 py-2 rounded-xl cursor-pointer"> تم الرد</Badge>
                                                             </Button>
                                                         )}
 

@@ -167,7 +167,8 @@ export async function POST(req) {
 
 export async function DELETE(req) {
     const session = await getSession();
-    if (!session || parseInt(session.empNum) !== 181) {
+    const authorizedUsers = [181, 938, 1714];
+    if (!session || !authorizedUsers.includes(parseInt(session.empNum))) {
         return NextResponse.json({ success: false, error: "غير مصرح لك بالحذف" }, { status: 403 });
     }
 

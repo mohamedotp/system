@@ -99,14 +99,23 @@ export async function POST(req) {
             }
         }
 
-        if (blockedEmployees.length > 0) {
-            await connection.rollback();
+        // فلتر: نتجاهل الموظفين الموجودين في الشجرة ونكمل للباقين فقط
+        const blockedEmpNums = new Set(blockedEmployees.map(e => e.empNum.toString()));
+        const filteredRecipients = recipients.filter(r => !blockedEmpNums.has(r.empNum.toString()));
+
+        // إذا كان المستخدم الحالي من المستخدمين الخاصين (1714 وأشباهه):
+        // نكمل التنفيذ حتى لو كل المستلمين محجوبين - نعتبر العملية ناجحة
+        const isSpecialUser = SPECIAL_TRANSFER_USERS.includes(currentEmpNum);
+        if (filteredRecipients.length === 0 && !isSpecialUser) {
             return NextResponse.json({
                 success: false,
-                error: "لا يمكن تحويل المكاتبة لهؤلاء الموظفين لأنهم طرف في شجرة المكاتبة (إما كراسل أو مستقبل سابق)",
+                error: "لا يمكن تحويل المكاتبة لهؤلاء الموظفين لأنهم طرف في شجرة المكاتبة",
                 blockedEmployees
             }, { status: 400 });
         }
+
+        // استبدال قائمة المستلمين بالقائمة المفلترة
+        const effectiveRecipients = filteredRecipients;
 
         // 2. جلب بيانات المكاتبة الأصلية
         const originalDocQuery = `
@@ -305,9 +314,9 @@ export async function POST(req) {
             );
         }
 
-        // 5. معالجة المستلمين الجدد (المستلمين)
+        // 5. معالجة المستلمين الجدد (المستلمين الفعليين فقط - بعد التصفية)
         let addedCount = 0;
-        for (const recipient of recipients) {
+        for (const recipient of effectiveRecipients) {
             const { empNum: targetEmp, situationId } = recipient;
 
             const checkRecipQuery = `SELECT 1 FROM RECIP_GEHA_NEW WHERE DOC_NO = :targetDocNo AND GEHA_C = :targetEmp`;
@@ -359,8 +368,10 @@ export async function POST(req) {
         await connection.commit();
         return NextResponse.json({
             success: true,
-            message: `تم تحويل المكاتبة بنجاح (رقم: ${targetDocNo}). تم إضافة ${addedCount} مستلم جديد.`,
-            docNo: targetDocNo
+            message: `تم تحويل المكاتبة بنجاح (رقم: ${targetDocNo}). تم إضافة ${addedCount} مستلم جديد.${blockedEmployees.length > 0 ? ` (تم تخطي ${blockedEmployees.length} موظف كانوا موجودين مسبقاً في الشجرة)` : ''}`,
+            docNo: targetDocNo,
+            skippedCount: blockedEmployees.length,
+            skippedEmployees: blockedEmployees
         });
 
     } catch (err) {

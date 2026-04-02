@@ -402,7 +402,7 @@ export default function Navbar() {
                 )}
               </Link>
 
-              {(!isPushSubscribed || notifPermission !== 'granted') ? (
+              {/* {(!isPushSubscribed || notifPermission !== 'granted') ? (
                 <button
                   onClick={handleManualSubscription}
                   className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 border border-blue-600/20 rounded-xl hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black group"
@@ -420,7 +420,7 @@ export default function Navbar() {
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>إعادة ضبط</span>
                 </button>
-              )}
+              )} */}
 
               <button
                 onClick={() => {

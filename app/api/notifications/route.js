@@ -20,9 +20,8 @@ export async function GET(req) {
         try {
             salaryConn = await getConnection();
             result = await salaryConn.execute(
-                `SELECT n.ID, n.SENDER_ID, n.RECEIVER_ID, n.MESSAGE, n.DOC_NO, 
+                `SELECT n.ROWID as NOTIF_ID, n.SENDER_ID, n.RECEIVER_ID, n.MESSAGE, n.DOC_NO, 
                         NVL(n.READ_FLAG, 0) as READ_FLAG,
-                        ROWNUM as TEMP_ID, 
                         TO_CHAR(n.CREATED_AT, 'YYYY-MM-DD HH24:MI') as TIME_STR
                  FROM SYSTEM_NOTIFICATIONS n
                  WHERE n.RECEIVER_ID = :empNum
@@ -30,15 +29,14 @@ export async function GET(req) {
                 { empNum: empNumStr },
                 { maxRows: 50, outFormat: 4002 }
             );
-            finalRows = result.rows.map(r => ({ ...r, ID: r.ID || r.TEMP_ID }));
+            finalRows = result.rows.map(r => ({ ...r, ID: r.NOTIF_ID }));
         } catch (salaryErr) {
             if (salaryConn) await salaryConn.close().catch(() => { });
             salaryConn = null;
             docConn = await getConnection2();
             result = await docConn.execute(
-                `SELECT n.ID, n.SENDER_ID, n.RECEIVER_ID, n.MESSAGE, n.DOC_NO, 
+                `SELECT n.ROWID as NOTIF_ID, n.SENDER_ID, n.RECEIVER_ID, n.MESSAGE, n.DOC_NO, 
                         NVL(n.READ_FLAG, 0) as READ_FLAG,
-                        ROWNUM as TEMP_ID, 
                         TO_CHAR(n.CREATED_AT, 'YYYY-MM-DD HH24:MI') as TIME_STR
                  FROM SYSTEM_NOTIFICATIONS n
                  WHERE n.RECEIVER_ID = :empNum
@@ -46,7 +44,7 @@ export async function GET(req) {
                 { empNum: empNumStr },
                 { maxRows: 50, outFormat: 4002 }
             );
-            finalRows = result.rows.map(r => ({ ...r, ID: r.ID || r.TEMP_ID }));
+            finalRows = result.rows.map(r => ({ ...r, ID: r.NOTIF_ID }));
         }
 
         // 2. دمج بيانات المرسل والمكاتبة
@@ -74,16 +72,20 @@ export async function GET(req) {
                 docNos.forEach((id, i) => docBinds[`d${i}`] = id);
 
                 const docResult = await docConn.execute(
-                    `SELECT DOC_NO, FILE_NAME FROM DOC_DATA_NEW WHERE DOC_NO IN (${docPlaceholders})`,
-                    docBinds
+                    `SELECT DOC_NO, FILE_NAME, TO_CHAR(DOC_DATE, 'YYYY-MM-DD') as D_DATE FROM DOC_DATA_NEW WHERE DOC_NO IN (${docPlaceholders})`,
+                    docBinds,
+                    { outFormat: 4002 }
                 );
-                docResult.rows.forEach(r => { docMap[r[0]] = r[1]; });
+                docResult.rows.forEach(r => { 
+                    docMap[r.DOC_NO] = { path: r.FILE_NAME, date: r.D_DATE }; 
+                });
             }
 
             finalRows = finalRows.map(row => ({
                 ...row,
                 SENDER_NAME: senderMap[String(row.SENDER_ID)] || "موظف " + row.SENDER_ID,
-                DOC_PATH: docMap[row.DOC_NO] || null
+                DOC_PATH: docMap[row.DOC_NO]?.path || null,
+                DOC_DATE: docMap[row.DOC_NO]?.date || null
             }));
         }
 
@@ -150,11 +152,11 @@ export async function PATCH(req) {
     try {
         try {
             connection = await getConnection();
-            await connection.execute(`DELETE FROM SYSTEM_NOTIFICATIONS WHERE ID = :id AND RECEIVER_ID = :empNum`, { id: notificationId, empNum: empNumStr }, { autoCommit: true });
+            await connection.execute(`DELETE FROM SYSTEM_NOTIFICATIONS WHERE ROWID = :id AND RECEIVER_ID = :empNum`, { id: notificationId, empNum: empNumStr }, { autoCommit: true });
         } catch (salaryErr) {
             if (connection) await connection.close().catch(() => { });
             connection = await getConnection2();
-            await connection.execute(`DELETE FROM SYSTEM_NOTIFICATIONS WHERE ID = :id AND RECEIVER_ID = :empNum`, { id: notificationId, empNum: empNumStr }, { autoCommit: true });
+            await connection.execute(`DELETE FROM SYSTEM_NOTIFICATIONS WHERE ROWID = :id AND RECEIVER_ID = :empNum`, { id: notificationId, empNum: empNumStr }, { autoCommit: true });
         }
         return NextResponse.json({ success: true });
     } catch (err) {

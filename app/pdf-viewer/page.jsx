@@ -880,14 +880,14 @@ function PDFViewerContent() {
 
                     {/* Floating Instructions */}
                     {isDragMode && (
-                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-slate-800/90 text-white px-6 py-3 rounded-full border border-slate-700 shadow-2xl backdrop-blur-md z-[70] flex items-center gap-3 animate-bounce">
+                        <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-slate-800/90 text-white px-6 py-3 rounded-full border border-slate-700 shadow-2xl backdrop-blur-md z-[70] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
                             <AlertCircle className="w-5 h-5 text-blue-400" />
                             <span className="font-bold text-sm">قم بسحب التوقيع للمكان المطلوب في الصفحة الحالية ثم اضغط "تثبيت"</span>
                         </div>
                     )}
 
                     {isTextMode && (
-                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-full border border-blue-400 shadow-2xl z-[70] flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-full border border-blue-400 shadow-2xl z-[70] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
                             <Type className="w-5 h-5 text-white animate-pulse" />
                             <span className="font-bold text-sm">اضغط مرتين (Double Click) في أي مكان على الصفحة لإضافة نص</span>
                             <div className="h-4 w-px bg-white/30 mx-1" />

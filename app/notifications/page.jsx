@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
     Bell,
     Send,
@@ -26,6 +27,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
 export default function NotificationsPage() {
+    const router = useRouter();
     const [notifications, setNotifications] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -167,7 +169,7 @@ export default function NotificationsPage() {
         setFoundDocs([]);
     };
 
-    const handleOpenFile = async (path) => {
+    const handleOpenFile = async (path, docNo, docDate) => {
         if (!path) {
             toast.error("مسار الملف غير متوفر");
             return;
@@ -204,6 +206,11 @@ export default function NotificationsPage() {
         // 1. إذا كان الملف PDF أو صورة، نفضل فتحه في العارض الذكي (PDF Viewer)
         if (isPdf || isImage) {
             window.open(`/pdf-viewer?file=${encodeURIComponent(finalPath)}`, '_blank');
+            if (docNo) {
+                let url = `/import?search=${docNo}`;
+                if (docDate) url += `&date=${docDate}`;
+                router.push(url);
+            }
             return;
         }
 
@@ -226,8 +233,12 @@ export default function NotificationsPage() {
             } else {
                 window.location.href = `aoi-open:${finalPath}`;
             }
-        } catch (e) {
-            window.location.href = `aoi-open:${finalPath}`;
+        } finally {
+            if (docNo) {
+                let url = `/import?search=${docNo}`;
+                if (docDate) url += `&date=${docDate}`;
+                router.push(url);
+            }
         }
     };
 
@@ -327,9 +338,18 @@ export default function NotificationsPage() {
                                         <div className="flex-1 text-right">
                                             <div className="flex items-center justify-between mb-1">
                                                 <h3 className="font-black text-slate-900">{notif.SENDER_NAME}</h3>
-                                                <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold">
-                                                    <Clock className="w-3 h-3" />
-                                                    {notif.TIME_STR}
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold">
+                                                        <Clock className="w-3 h-3" />
+                                                        {notif.TIME_STR}
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleDeleteNotification(notif.ID)}
+                                                        className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                                                        title="حذف هذا التنبيه"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
                                                 </div>
                                             </div>
                                             <p className="text-slate-600 font-medium leading-relaxed mb-4">{notif.MESSAGE}</p>
@@ -345,23 +365,14 @@ export default function NotificationsPage() {
                                                     </div>
                                                     <Button
                                                         size="sm"
-                                                        onClick={() => handleOpenFile(notif.DOC_PATH)}
+                                                        onClick={() => handleOpenFile(notif.DOC_PATH, notif.DOC_NO, notif.DOC_DATE)}
                                                         className="bg-white text-blue-600 border border-blue-100 hover:bg-blue-50 font-bold rounded-xl h-9"
                                                     >
                                                         <ExternalLink className="w-4 h-4 ml-2" />
                                                         فتح المكاتبة
                                                     </Button>
 
-                                                    {/* زرار حذف الربط */}
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => handleDeleteNotification(notif.ID)}
-                                                        className="text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl h-9 px-3"
-                                                        title="حذف التنبيه"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
+
                                                 </div>
                                             )}
 

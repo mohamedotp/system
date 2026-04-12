@@ -96,12 +96,30 @@ export async function POST(request) {
             fs.copyFileSync(decentPdfPath, backupPath);
         }
 
+        // حساب الأبعاد للحفاظ على نسبة التناسق (شبيهاً بـ object-fit: contain في الواجهة)
+        const imgDims = signatureImage.scale(1);
+        const imgRatio = imgDims.width / imgDims.height;
+        const boxRatio = finalSigWidth / finalSigHeight;
+        
+        let drawWidth, drawHeight, drawX, drawY;
+        if (imgRatio > boxRatio) {
+            drawWidth = finalSigWidth;
+            drawHeight = finalSigWidth / imgRatio;
+            drawX = finalX;
+            drawY = finalY + (finalSigHeight - drawHeight) / 2;
+        } else {
+            drawHeight = finalSigHeight;
+            drawWidth = finalSigHeight * imgRatio;
+            drawX = finalX + (finalSigWidth - drawWidth) / 2;
+            drawY = finalY;
+        }
+
         // 7. رسم التوقيع
         targetPage.drawImage(signatureImage, {
-            x: finalX,
-            y: finalY,
-            width: finalSigWidth,
-            height: finalSigHeight,
+            x: drawX,
+            y: drawY,
+            width: drawWidth,
+            height: drawHeight,
         });
 
         // 8. جلب اسم الموظف والتاريخ
@@ -141,17 +159,9 @@ export async function POST(request) {
 
         const now = new Date();
         const timestampText = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        const fontSize = 10;
-        const nameFontSize = 11;
-
-        // رسم التاريخ
-        targetPage.drawText(timestampText, {
-            x: finalX + (finalSigWidth / 2) - (helveticaFont.widthOfTextAtSize(timestampText, fontSize) / 2),
-            y: finalY - 12,
-            size: fontSize,
-            font: helveticaFont,
-            color: rgb(0, 0, 1),
-        });
+        
+        const fontSize = 5;
+        const nameFontSize = 6;
 
         // رسم الاسم (مع إعادة التشكيل)
         const ARABIC_FORMS = {
@@ -179,50 +189,68 @@ export async function POST(request) {
 
         const reshape = (t) => {
             if (!t) return "";
-            // معالجة اللام ألف
-            t = t.replace(/لا/g, "ﻻ").replace(/لأ/g, "ﻷ").replace(/لإ/g, "ﻹ").replace(/لآ/g, "ﻵ");
-
+            t = t.trim().replace(/لا/g, "ﻻ").replace(/لأ/g, "ﻷ").replace(/لإ/g, "ﻹ").replace(/لآ/g, "ﻵ");
             let r = "";
             for (let i = 0; i < t.length; i++) {
                 const c = t[i];
                 if (!ARABIC_FORMS[c]) { r += c; continue; }
-
                 const p = i > 0 ? t[i - 1] : null;
                 const n = i < t.length - 1 ? t[i + 1] : null;
-
-                // القدرة على الاتصال بما قبله
                 const canConnectPrev = p && ARABIC_FORMS[p] && !DONT_CONNECT.includes(p);
-                // القدرة على الاتصال بما بعده
                 const canConnectNext = n && ARABIC_FORMS[n] && !DONT_CONNECT.includes(c);
 
-                let f = 0; // مستقل
-                if (canConnectPrev && canConnectNext) f = 2; // وسط
-                else if (canConnectPrev) f = 3; // نهائي
-                else if (canConnectNext) f = 1; // ابتدائي
+                let f = 0; 
+                if (canConnectPrev && canConnectNext) f = 2; 
+                else if (canConnectPrev) f = 3; 
+                else if (canConnectNext) f = 1; 
 
                 r += ARABIC_FORMS[c][f];
             }
-            return r; // تمت إزالة العكس بناءً على رغبة المستخدم ولأن نظام الخط قد يدعم الـ RTL تلقائياً مع الحروف المشكلة
+            return r;
         };
 
         const reshapedName = reshape(empName);
+        const nameWidthPx = arabicFont.widthOfTextAtSize(reshapedName, nameFontSize);
+        const dateWidthPx = helveticaFont.widthOfTextAtSize(timestampText, fontSize);
+        const maxTextWidth = Math.max(nameWidthPx, dateWidthPx);
 
-        // حساب الحجم المناسب للخط لضمان عدم الخروج عن الإطار بشكل فج
-        let currentNameSize = nameFontSize;
-        let textWidth = arabicFont.widthOfTextAtSize(reshapedName, currentNameSize);
-        const maxWidth = Math.max(finalSigWidth * 1.5, 140); // السماح بمساحة أكبر قليلاً
-
-        while (textWidth > maxWidth && currentNameSize > 8) {
-            currentNameSize -= 0.5;
-            textWidth = arabicFont.widthOfTextAtSize(reshapedName, currentNameSize);
+        let placementSide = "left";
+        if (drawX - maxTextWidth - 5 < 5) {
+            placementSide = "right";
         }
 
+        let blockLeftX;
+        if (placementSide === "left") {
+            // إذا كان النص على يسار التوقيع، اجعل أقصى يمين النص قريباً من التوقيع
+            blockLeftX = drawX - maxTextWidth - 2;
+        } else {
+            // إذا كان النص على يمين التوقيع (كما في الصورة)، نُقربه أكثر نحو اليسار (شمال) بخصم مسافة ليتداخل مع الهامش الشفاف للختم
+            blockLeftX = drawX + drawWidth - 8;
+        }
+
+        // محاذاة عمودية دقيقة ومحاذاة أفقية لليسار لضمان أنهم "فوق بعض" تماماً
+        const sideXForName = blockLeftX;
+        const sideXForDate = blockLeftX;
+
+        const centerOfSigY = drawY + (drawHeight / 2);
+        const sideYForName = centerOfSigY; // خط الأساس للاسم 
+        const sideYForDate = centerOfSigY - 6; // خط الأساس للتاريخ 
+
+
         targetPage.drawText(reshapedName, {
-            x: finalX + (finalSigWidth / 2) - (textWidth / 2),
-            y: finalY - 26,
-            size: currentNameSize,
+            x: sideXForName,
+            y: sideYForName,
+            size: nameFontSize,
             font: arabicFont,
             color: rgb(0, 0, 0),
+        });
+
+        targetPage.drawText(timestampText, {
+            x: sideXForDate,
+            y: sideYForDate,
+            size: fontSize,
+            font: helveticaFont,
+            color: rgb(0, 0, 1),
         });
 
         // 9. حفظ PDF (مع تكرار المحاولة في حالة القفل EBUSY)

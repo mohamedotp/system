@@ -55,13 +55,13 @@ export async function POST(req) {
             return NextResponse.json({ success: false, error: "لا يمكنك تعديل هذه المكاتبة" }, { status: 403 });
         }
 
-        // جلب الرقم المرجعي الرئيسي (MAIN_DOC) للمكاتبة لضمان تحديث كل "شجرة" التحويلات
+        // جلب الرقم المرجعي الرئيسي (MAIN_DOC) للمكاتبة لضمان تحديث كل "شجرة" التحويلات ومعرفة مسار حفظ المستند الأصلي
         const mainDocRes = await connection.execute(
-            `SELECT NVL(MAIN_DOC, DOC_NO), DOC_DATE, MAIN_DOC_NO, MAIN_DOC_DATE, MAIN_DATE 
+            `SELECT NVL(MAIN_DOC, DOC_NO), DOC_DATE, MAIN_DOC_NO, MAIN_DOC_DATE, MAIN_DATE, FILE_NAME 
              FROM DOC_DATA_NEW WHERE DOC_NO = :docNo`,
             { docNo }
         );
-        const [rootDocId, docDate, mainDocNo, mainDocDate, mainDate] = mainDocRes.rows[0];
+        const [rootDocId, docDate, mainDocNo, mainDocDate, mainDate, mainDocPath] = mainDocRes.rows[0];
 
         // --- معالجة المرفقات في الجدول الجديد ATTACHMENTS ---
         if (formData.has("manageAttachments")) {
@@ -94,15 +94,20 @@ export async function POST(req) {
                 const file = attachments[i];
                 const fileDesc = descriptions[i] || file.name;
 
-                // حفظ الملف فيزيائياً
-                const uploadDir = path.join(process.env.ATTACHMENTS_PATH || "C:\\Archives", docNo);
+                // حفظ الملف فيزيائياً في نفس مسار المكاتبة الأصلية
+                let uploadDir;
+                if (mainDocPath) {
+                    uploadDir = path.dirname(mainDocPath);
+                } else {
+                    uploadDir = path.join(process.env.ATTACHMENTS_PATH || "C:\\Archives", docNo);
+                }
+                
                 await mkdir(uploadDir, { recursive: true });
                 const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
                 const filePath = path.join(uploadDir, fileName);
                 const buffer = Buffer.from(await file.arrayBuffer());
                 await writeFile(filePath, buffer);
 
-                // إدراج في جدول ATTACHMENTS
                 // إدراج في جدول ATTACHMENTS
                 await connection.execute(
                     `INSERT INTO ATTACHMENTS (

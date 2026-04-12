@@ -3,6 +3,8 @@ import fs from "fs";
 import { getSession } from "@/lib/auth";
 import { getConnection2 } from "@/lib/oracle";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req) {
     const session = await getSession();
     if (!session) return NextResponse.json({ success: false }, { status: 401 });

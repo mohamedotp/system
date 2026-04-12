@@ -149,7 +149,7 @@ export default function TemplatesPage() {
     };
 
     const getArabicName = (fileName) => {
-        const pure = fileName.replace(/\.docm$/i, "");
+        const pure = fileName.replace(/\.(docm|docx|doc)$/i, "");
         const match = dbKinds.find(k => (k.nameEn || "").toLowerCase() === pure.toLowerCase());
         return match ? match.nameAr : fileName;
     };
@@ -272,7 +272,7 @@ export default function TemplatesPage() {
                                         <div className="bg-slate-50 rounded-[24px] border border-slate-100 shadow-inner max-h-[350px] overflow-y-auto custom-scrollbar p-2">
 
                                             {/* Option 1: Upload from Device */}
-                                            {/* <div
+                                            <div
                                                 onClick={() => fileInputRef.current?.click()}
                                                 className="p-3 mb-2 hover:bg-white hover:shadow-md hover:border-emerald-100 border border-transparent rounded-xl cursor-pointer transition-all flex items-center justify-between group bg-emerald-50/50"
                                             >
@@ -286,7 +286,7 @@ export default function TemplatesPage() {
                                                     </div>
                                                 </div>
                                                 <Upload className="w-4 h-4 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            </div> */}
+                                            </div>
 
                                             {/* Option 2: Blank Template */}
                                             <div
@@ -337,7 +337,7 @@ export default function TemplatesPage() {
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            const match = dbKinds.find(k => (k.nameEn || "").toLowerCase() === file.fileName.replace(/\.docm$/i, "").toLowerCase());
+                                                                            const match = dbKinds.find(k => (k.nameEn || "").toLowerCase() === file.fileName.replace(/\.(docm|docx|doc)$/i, "").toLowerCase());
                                                                             if (match) handleDelete(match.id, file.fileName);
                                                                             else toast.error("لم يتم العثور على سجل في قاعدة البيانات لهذا الملف");
                                                                         }}

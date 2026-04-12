@@ -22,9 +22,10 @@ export async function POST(req) {
   try {
     connection = await getConnection2();
 
-    // تحديث الحالة في جدول المستلمين
+    // تحديث الحالة وتاريخ المشاهدة في جدول المستلمين
     await connection.execute(
-      `UPDATE RECIP_GEHA_NEW SET ANSERED = :targetStatus WHERE DOC_NO = :docNo AND GEHA_C = :empNum`,
+      `UPDATE RECIP_GEHA_NEW SET ANSERED = :targetStatus, SEEN_DATE = SYSDATE, SEEN_FLAG = 1 
+       WHERE DOC_NO = :docNo AND GEHA_C = :empNum`,
       { docNo, empNum, targetStatus },
       { autoCommit: false }
     );

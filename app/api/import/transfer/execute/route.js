@@ -14,7 +14,7 @@ export async function POST(req) {
 
     let connection;
     try {
-        const { docNo, recipients, attachments } = await req.json();
+        const { docNo, recipients, attachments, docStatus } = await req.json();
 
         if (!docNo || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
             return NextResponse.json({ success: false, error: "بيانات ناقصة" }, { status: 400 });
@@ -355,7 +355,7 @@ export async function POST(req) {
             }
         }
 
-        // ✅ إذا كان المستخدم الحالي من المستخدمين الخاصين، نقوم بتحديث حالة الرد الخاصة به في المكاتبة الأصلية
+        // ✅ إذا كان المستخدم الحالي من المستخدمين الخاصين، نقوم بتحديث حالة الرد الخاصة به في المكاتبة الأصلية (docNo)
         if (SPECIAL_TRANSFER_USERS.includes(currentEmpNum)) {
             // تحديث سجل المستلم الخاص به في RECIP_GEHA_NEW للمكاتبة الأصلية (docNo)
             await connection.execute(
@@ -363,6 +363,16 @@ export async function POST(req) {
                 { docNo, currentEmpNum },
                 { autoCommit: false }
             );
+
+            // تحديث حالة أولوية المكاتبة (DOC_STATUS) على نسخة التحويل (targetDocNo)
+            // حتى يرى المستلمون اللون الأحمر في صندوق الوارد لديهم
+            if (docStatus && docStatus > 0) {
+                await connection.execute(
+                    `UPDATE DOC_DATA_NEW SET DOC_STATUS = :docStatus WHERE DOC_NO = :targetDocNo`,
+                    { docStatus: Number(docStatus), targetDocNo },
+                    { autoCommit: false }
+                );
+            }
         }
 
         await connection.commit();

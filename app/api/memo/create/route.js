@@ -22,18 +22,15 @@ export async function POST(req) {
         const currentEmpNum = session.empNum;
         connection = await getConnection2();
 
-        // Determine which EMP_NO to use (Vacation Emp or Recipient Emp)
         const finalEmpNo = vacationEmpNo ? parseInt(vacationEmpNo) : recipientEmpNum;
         const finalFromDate = fromDate ? new Date(fromDate) : null;
         const finalToDate = toDate ? new Date(toDate) : null;
 
-        // 1. الحصول على رقم مكاتبة جديد
+        // توليد DOC_NO فريد مع retry في حالة تعارض unique constraint
         const docNoResult = await connection.execute(
-            `SELECT COALESCE(MAX(DOC_NO), 0) + 1 FROM DOC_DATA_NEW`
+            `SELECT NVL(MAX(DOC_NO), 0) + 1 FROM DOC_DATA_NEW`
         );
-        const newDocNo = docNoResult.rows[0][0];
-
-        // 2. معالجة بيانات الربط (في حالة الرد)
+        let newDocNo = docNoResult.rows[0][0];
         let mainDoc = newDocNo;
         let mainDocNo = newDocNo;
         let finalTransType = transType || 1;
@@ -49,14 +46,12 @@ export async function POST(req) {
             }
         }
 
-        // 3. جلب وصف نوع المكاتبة
         const kindResult = await connection.execute(
             `SELECT DOC_DESC_A, DOC_DESC FROM DOC_KIND WHERE DOC_KIND = :docType`,
             { docType: parseInt(docType) }
         );
         const docDescE = kindResult.rows.length > 0 ? kindResult.rows[0][1] : "DOC";
 
-        // 4. بناء المسار التلقائي
         const now = new Date();
         const year = now.getFullYear().toString();
         const month = (now.getMonth() + 1).toString().padStart(2, '0');
@@ -66,13 +61,12 @@ export async function POST(req) {
         const baseNetworkPath = `\\\\192.168.13.12\\homes\\DOCUMENTS`;
         const dynamicFolder = `${baseNetworkPath}\\${year}\\${month}\\${day}\\${currentEmpNum}`;
         const fileName = `${newDocNo}_${docDescE}_${dateStr}`;
-        let finalExtension = '.docm'; // الافتراضي لضمان استخدامه في الاستجابة
+        let finalExtension = '.docm';
         try {
             if (!fs.existsSync(dynamicFolder)) {
                 fs.mkdirSync(dynamicFolder, { recursive: true });
             }
 
-            // محاولة البحث عن القالب بامتدادات مختلفة
             const extensions = ['.docm', '.docx'];
             let templatePath = null;
 
@@ -85,7 +79,6 @@ export async function POST(req) {
                 }
             }
 
-            // إذا لم يجد القالب المحدد، نستخدم القالب الافتراضي TAMPLET أو EMPTY_DOC
             if (!templatePath) {
                 const fallbacks = ['TAMPLET.docm', 'EMPTY_DOC.docm', 'TAMPLET.docx'];
                 for (const fallback of fallbacks) {
@@ -118,20 +111,71 @@ export async function POST(req) {
                 }
 
                 console.log(`✅ File copied from ${templatePath} to ${destinationPath}`);
+
+                // ======== إضافة مقترحة من المستخدم لتأكيد خصائص الصفحة عبر السيرفر قبل فتحها للعميل ========
+                try {
+                    const { exec } = require('child_process');
+                    const util = require('util');
+                    const execPromise = util.promisify(exec);
+                    const os = require('os');
+
+                    // قتل أي عملية وورد معلقة كإجراء احترازي - تم التعليق لعدم التأثير على Word المفتوح
+                    // await execPromise('taskkill /F /IM winword.exe').catch(() => { });
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
+                    const tempDir = os.tmpdir();
+                    const pdfInitPath = destinationPath.replace(/\.(docm|docx)$/i, ".pdf");
+
+                    const psInitScript = `
+                        $word = New-Object -ComObject Word.Application;
+                        $word.Visible = $false;
+                        $word.DisplayAlerts = 0; 
+                        $word.ScreenUpdating = $false;
+                        try {
+                            # --- فتح الملف كقراءة فقط لضمان عدم تغيير إعداداته أو تنسيقه ---
+                            $doc = $word.Documents.Open('${destinationPath}', $false, $true);
+
+                            Start-Sleep -Seconds 1;
+                            $doc.Fields.Update();
+                            $doc.Repaginate();
+
+                            # --- تصدير الـ PDF من النسخة الحالية بدون حفظ أي شيء للوورد ---
+                            $doc.SaveAs([ref]'${pdfInitPath}', [ref]17);
+                            $doc.Close(0); # 0 = wdDoNotSaveChanges
+
+                        } catch {
+                            Write-Error $_.Exception.Message
+                            exit 1
+                        } finally {
+                            $word.Quit();
+                            [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
+                            [GC]::Collect();
+                            [GC]::WaitForPendingFinalizers();
+                        }
+                    `;
+
+                    const tempPsFile = path.join(tempDir, `init_${Date.now()}.ps1`);
+                    fs.writeFileSync(tempPsFile, psInitScript, { encoding: 'utf8' });
+                    await execPromise(`powershell -ExecutionPolicy Bypass -File "${tempPsFile}"`);
+                    if (fs.existsSync(tempPsFile)) fs.unlinkSync(tempPsFile);
+
+                    console.log(`✅ Server initialized formatting for ${destinationPath}`);
+
+                } catch (initErr) {
+                    console.log(`⚠️ Warning: Server init formatting failed, continuing normal flow`, initErr);
+                }
+                // =========================================================================================
+
             } else {
                 console.error("❌ No template found for:", docDescE);
-                // ممكن ننشئ ملف فارغ هنا لو حابب، بس الأفضل نبلغ المستخدم
             }
         } catch (fsErr) {
             console.error("FileSystem Error:", fsErr.message);
             throw new Error(`تعذر إنشاء ملف الورد: ${fsErr.message}`);
         }
 
-        // يتم حفظ المسار في قاعدة البيانات بدون امتداد لسهولة التعامل لاحقاً مع PDF وغيره
         const basePathForDb = `${dynamicFolder}\\${fileName}`;
 
-        // 5. إدراج في قاعدة البيانات
-        // بناء SQL ديناميكياً لتجنب ORA-00932 عند تمرير null لـ TRUNC() في حالة المكاتبات غير الإجازة
         const extraCols = finalFromDate && finalToDate ? `, FROM_DATE, TO_DATE` : ``;
         const extraVals = finalFromDate && finalToDate ? `, TRUNC(:fromDate), TRUNC(:toDate)` : ``;
         const baseBinds = {
@@ -148,13 +192,37 @@ export async function POST(req) {
             baseBinds.toDate = finalToDate;
         }
 
-        await connection.execute(`
-            INSERT INTO DOC_DATA_NEW (
-                DOC_NO, DOC_DATE, PLACE_C, SUBJECT, DOC_TYPE, EMP_NO, FILE_NAME, SECTORE, FLAG, TRANS_TYPE, MAIN_DOC, MAIN_DOC_NO${extraCols}
-            ) VALUES (
-                :newDocNo, SYSDATE, :currentEmpNum, :subject, :docType, :finalEmpNo, :filePath, 0, 1, :finalTransType, :mainDoc, :mainDocNo${extraVals}
-            )
-        `, baseBinds, { autoCommit: true });
+        // إدراج مع retry تلقائي في حالة ORA-00001 (unique constraint)
+        let insertSuccess = false;
+        let insertAttempts = 0;
+        while (!insertSuccess && insertAttempts < 5) {
+            try {
+                baseBinds.newDocNo = newDocNo;
+                // تحديث MAIN_DOC/MAIN_DOC_NO إذا كان هو نفسه (لم يكن هناك parentDocNo)
+                if (!parentDocNo) {
+                    baseBinds.mainDoc = newDocNo;
+                    baseBinds.mainDocNo = newDocNo;
+                }
+                await connection.execute(`
+                    INSERT INTO DOC_DATA_NEW (
+                        DOC_NO, DOC_DATE, PLACE_C, SUBJECT, DOC_TYPE, EMP_NO, FILE_NAME, SECTORE, FLAG, TRANS_TYPE, MAIN_DOC, MAIN_DOC_NO${extraCols}
+                    ) VALUES (
+                        :newDocNo, SYSDATE, :currentEmpNum, :subject, :docType, :finalEmpNo, :filePath, 0, 1, :finalTransType, :mainDoc, :mainDocNo${extraVals}
+                    )
+                `, baseBinds, { autoCommit: true });
+                insertSuccess = true;
+            } catch (insertErr) {
+                if (insertErr.message && insertErr.message.includes('ORA-00001') && insertAttempts < 4) {
+                    insertAttempts++;
+                    console.warn(`⚠️ DOC_NO conflict on ${newDocNo}, retrying (attempt ${insertAttempts})...`);
+                    await new Promise(resolve => setTimeout(resolve, 150 * insertAttempts));
+                    const retryResult = await connection.execute(`SELECT NVL(MAX(DOC_NO), 0) + 1 FROM DOC_DATA_NEW`);
+                    newDocNo = retryResult.rows[0][0];
+                } else {
+                    throw insertErr;
+                }
+            }
+        }
 
         return NextResponse.json({
             success: true,

@@ -107,6 +107,13 @@ export default function Navbar() {
               toast.info(`رسالة من ${latest.SENDER_NAME}: ${latest.MESSAGE}`, {
                 action: { label: "عرض", onClick: () => router.push("/notifications") }
               });
+
+              // تأكيد القراءة فوراً حتى لا يضطر المستخدم للذهاب لصفحة التنبيهات
+              fetch("/api/notifications/read", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ notifId: latest.NOTIF_ID || latest.ID })
+              }).catch(e => console.error("Mark read error:", e));
             }
           }
           return newUnreadCount;
@@ -273,7 +280,7 @@ export default function Navbar() {
     if (user) {
       fetchNotifications();
       registerPushNotifications();
-      const interval = setInterval(fetchNotifications, 30000);
+      const interval = setInterval(fetchNotifications, 15000);
       return () => clearInterval(interval);
     }
   }, [user]); // التحديث فقط عند تغيير المستخدم

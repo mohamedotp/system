@@ -41,7 +41,8 @@ import {
     Trash2,
     Pencil,
     RefreshCcw,
-    ArrowUpDown
+    ArrowUpDown,
+    User
 } from "lucide-react";
 import {
     Select,
@@ -153,6 +154,19 @@ export default function ExportPage() {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false);
     const [manageTab, setManageTab] = useState('edit'); // 'edit' | 'delete'
     const [manageLoading, setManageLoading] = useState(false); // لتحميل بيانات الحذف عند الفتح
+
+    // حالات شاشة الإلحاق (Reply/Follow-up Mode)
+    const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
+    const [replyDocType, setReplyDocType] = useState("");
+    const [replySubject, setReplySubject] = useState("");
+    const [docKinds, setDocKinds] = useState([]);
+    const [kindSearchTerm, setKindSearchTerm] = useState("");
+    const [isCreatingReply, setIsCreatingReply] = useState(false);
+    const [replySavedPath, setReplySavedPath] = useState(null);
+    const [replyDocNo, setReplyDocNo] = useState(null);
+    const [replyExistingAttachments, setReplyExistingAttachments] = useState([]);
+    const [replyNewAttachments, setReplyNewAttachments] = useState([]);
+    const [isArchivingReply, setIsArchivingReply] = useState(false);
 
     // دالة لتحديد نوع المكاتبة وإرجاع بيانات العرض
     const getMemoTypeInfo = (item) => {
@@ -531,6 +545,157 @@ export default function ExportPage() {
         }
     };
 
+    const fetchDocKinds = async (query = "") => {
+        try {
+            const res = await fetch(`/api/memo/kinds?q=${encodeURIComponent(query)}`);
+            const json = await res.json();
+            if (json.success) setDocKinds(json.data);
+        } catch (error) {
+            console.error("Error fetching kinds:", error);
+        }
+    };
+
+    const handleOpenReply = (item) => {
+        setSelectedDoc(item);
+        setReplySubject(`الحاق على مكاتبة : ${item.SUBJECT || ''}`);
+        setReplyDocType("");
+
+        let initialAtts = [];
+        if (item.FILE_NAME) initialAtts.push(item.FILE_NAME);
+
+        if (item.ATTACHMENTS_LIST && item.ATTACHMENTS_LIST.length > 0) {
+            const listPaths = item.ATTACHMENTS_LIST.map(a => a.FILE_PATH).filter(p => !!p);
+            initialAtts = [...initialAtts, ...listPaths];
+        } else if (item.FILE_ATTACH) {
+            const existing = item.FILE_ATTACH.split('|').filter(a => !!a);
+            initialAtts = [...initialAtts, ...existing];
+        }
+
+        setReplyExistingAttachments(Array.from(new Set(initialAtts)));
+        setReplyNewAttachments([]);
+        setSelectedEmps([]);
+
+        setIsReplyModalOpen(true);
+        // Ensure employees are fetched if not already
+        if (employees.length === 0) {
+            fetchEmployees();
+        }
+        // fetchSituations and docKinds are needed for the reply modal
+        // assuming fetchSituations is defined somewhere or we use the pre-fetched ones
+        if (situations.length === 0) {
+            // Usually fetched on mount, but we ensure it's available
+            const fetchSits = async () => {
+                const res = await fetch("/api/situations");
+                const json = await res.json();
+                if (json.success) setSituations(json.data);
+            };
+            fetchSits();
+        }
+        fetchDocKinds();
+    };
+
+    const handleCreateReply = async () => {
+        if (!replyDocType || !selectedDoc || selectedEmps.length === 0) {
+            toast.error("برجاء اختيار النوع والمستلمين");
+            return;
+        }
+
+        setIsCreatingReply(true);
+        try {
+            const res = await fetch("/api/memo/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    docType: replyDocType,
+                    subject: replySubject,
+                    recipientEmpNums: selectedEmps.map(e => e.EMP_NUM),
+                    parentDocNo: selectedDoc.DOC_NO,
+                    transType: 3 // رد أو إلحاق
+                })
+            });
+
+            const json = await res.json();
+            if (json.success) {
+                setReplyDocNo(json.docNo);
+                setReplySavedPath(json.filePath);
+                toast.success("تم إنشاء المسودة، جاري فتح الوورد للتعديل...");
+
+                openFile(json.filePath, null);
+            } else {
+                toast.error(json.error || "فشل الإنشاء");
+            }
+        } catch (error) {
+            toast.error("خطأ في الاتصال بالسيرفر");
+        } finally {
+            setIsCreatingReply(false);
+        }
+    };
+
+    const executeReplyArchive = async () => {
+        if (!replyDocNo || !replySavedPath) return;
+
+        setIsArchivingReply(true);
+        try {
+            let finalUploadedAttachments = [];
+
+            if (replyNewAttachments.length > 0) {
+                const formData = new FormData();
+                formData.append("docNo", replyDocNo);
+                replyNewAttachments.forEach(file => formData.append("files", file));
+
+                const uploadRes = await fetch("/api/memo/upload", {
+                    method: "POST",
+                    body: formData
+                });
+                const uploadJson = await uploadRes.json();
+                if (uploadJson.success) {
+                    finalUploadedAttachments = uploadJson.attachments || [];
+                } else {
+                    throw new Error(uploadJson.error || "فشل رفع المرفقات الجديدة");
+                }
+            }
+
+            const attachmentsArr = replyExistingAttachments.map(p => ({
+                path: p,
+                desc: p.split(/[\\\/]/).pop()
+            }));
+
+            if (finalUploadedAttachments.length > 0) {
+                attachmentsArr.push(...finalUploadedAttachments);
+            }
+
+            const res = await fetch("/api/memo/archive", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    docNo: replyDocNo,
+                    path: replySavedPath,
+                    attachments: attachmentsArr,
+                    recipients: selectedEmps.map(e => ({
+                        empNum: e.EMP_NUM,
+                        situationId: e.customSituation || "7"
+                    }))
+                })
+            });
+
+            const json = await res.json();
+            if (json.success) {
+                toast.success("تم إرسال الإلحاق بنجاح");
+                setIsReplyModalOpen(false);
+                fetchData();
+
+                openFile(json.pdfPath, replyDocNo);
+            } else {
+                toast.error(json.error || "فشل الأرشفة");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error(error.message || "حدث خطأ أثناء الاتصال بالسيرفر");
+        } finally {
+            setIsArchivingReply(false);
+        }
+    };
+
     const fetchData = async (options = {}) => {
         setLoading(true);
         setError("");
@@ -629,7 +794,7 @@ export default function ExportPage() {
         fetchData();
     };
 
-    const openFile = async (fileName, docNo) => {
+    const openFile = async (fileName, docNo, forceWord = false) => {
         if (!fileName) {
             toast.error("لا يوجد مسار ملف لهذه المكاتبة");
             return;
@@ -658,7 +823,7 @@ export default function ExportPage() {
         const isPdf = lowerPath.endsWith(".pdf");
 
         // 1. إذا كان الملف PDF أو صورة أو ليس له امتداد (مكاتبة قديمة)، نفتح في العارض الذكي
-        if (isPdf || isImage || !hasAnyExtension) {
+        if (!forceWord && (isPdf || isImage || !hasAnyExtension)) {
             let viewerPath = finalPath;
             if (!hasAnyExtension && !isPdf) {
                 viewerPath += ".pdf";
@@ -680,7 +845,7 @@ export default function ExportPage() {
 
             if (json.success) {
                 if (json.isRemote) {
-                    window.location.href = `aoi-open:${finalPath}`;
+                    window.location.href = `aoi-open:${json.resolvedPath || finalPath}`;
                 } else {
                     toast.success("تم فتح الملف بنجاح");
                 }
@@ -804,7 +969,7 @@ export default function ExportPage() {
 
     const startPolling = async (docNo) => {
         try {
-            const res = await fetch(`/api/memo/update-pdf/check?docNo=${docNo}`);
+            const res = await fetch(`/api/memo/update-pdf/check?docNo=${docNo}&_t=${Date.now()}`);
             const json = await res.json();
             if (json.success) {
                 let currentWordMtime = json.wordMtime;
@@ -816,7 +981,7 @@ export default function ExportPage() {
                     if (updatingDocsRef.current[docNo]) return;
 
                     try {
-                        const checkRes = await fetch(`/api/memo/update-pdf/check?docNo=${docNo}`);
+                        const checkRes = await fetch(`/api/memo/update-pdf/check?docNo=${docNo}&_t=${Date.now()}`);
                         const checkJson = await checkRes.json();
 
                         if (checkJson.success) {
@@ -1103,15 +1268,15 @@ export default function ExportPage() {
                                                 </td>
                                                 <td className="px-2 py-2 text-right font-bold text-slate-600">
                                                     <div className="flex flex-col gap-0.5">
-                                                             <span className="text-sm">
-                                                                 {item.DOC_DATE_STR ? (item.DOC_DATE_STR.includes(' ') ? item.DOC_DATE_STR.split(' ')[0].split('-').reverse().join('/') : item.DOC_DATE_STR.split('-').reverse().join('/')) : '-'}
-                                                             </span>
-                                                             {item.DOC_DATE_STR?.includes(' ') && (
-                                                                 <span className="text-[10px] text-slate-400 font-medium">
-                                                                     {item.DOC_DATE_STR.split(' ')[1]}
-                                                                 </span>
-                                                             )}
-                                                         </div>
+                                                        <span className="text-sm">
+                                                            {item.DOC_DATE_STR ? (item.DOC_DATE_STR.includes(' ') ? item.DOC_DATE_STR.split(' ')[0].split('-').reverse().join('/') : item.DOC_DATE_STR.split('-').reverse().join('/')) : '-'}
+                                                        </span>
+                                                        {item.DOC_DATE_STR?.includes(' ') && (
+                                                            <span className="text-[10px] text-slate-400 font-medium">
+                                                                {item.DOC_DATE_STR.split(' ')[1]}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-5 text-right max-w-sm">
                                                     <p className="font-black text-slate-800 leading-relaxed line-clamp-2">{item.SUBJECT}</p>
@@ -1205,8 +1370,8 @@ export default function ExportPage() {
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 if (!confirm("تنبيه: سيتم فقد أي إمضاءات أو توقيعات موجودة على المكاتبة بمجرد تعديل ملف الوورد وحفظه. هل تريد الاستمرار؟")) return;
-                                                                                const rawPath = item.FILE_NAME.split('|')[0];
-                                                                                openFile(rawPath + ".docm", item.DOC_NO);
+                                                                                const rawPath = item.FILE_NAME.split('|')[0].trim();
+                                                                                openFile(rawPath, item.DOC_NO, true);
 
                                                                                 // بدء المراقبة الآلية
                                                                                 startPolling(item.DOC_NO);
@@ -1292,6 +1457,15 @@ export default function ExportPage() {
                                                             title="إعادة إرسال"
                                                         >
                                                             <RotateCcw className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-9 w-9 p-0 rounded-xl text-purple-600 hover:bg-purple-50 transition-colors"
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenReply(item); }}
+                                                            title="إلحاق بالمكاتبة"
+                                                        >
+                                                            <ArrowUpDown className="w-4 h-4 rotate-90" />
                                                         </Button>
                                                         {/* <Button
                                                             size="sm"
@@ -1693,6 +1867,265 @@ export default function ExportPage() {
                 </div>
             )}
 
+            {/* Reply Modal */}
+            {
+                isReplyModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsReplyModalOpen(false)} />
+                        <div className="relative bg-white w-full max-w-7xl rounded-[32px] shadow-2xl overflow-hidden border border-white/20 flex flex-col max-h-[95vh] animate-in zoom-in-95 duration-300">
+                            {/* Header */}
+                            <div className="bg-purple-900 p-8 text-white relative">
+                                <button onClick={() => setIsReplyModalOpen(false)} className="absolute left-8 top-8 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="p-4 bg-purple-600 rounded-2xl shadow-lg">
+                                        <ArrowUpDown className="w-8 h-8 text-white rotate-90" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-black text-white">إلحاق على مكاتبة</h2>
+                                        <p className="text-purple-200 text-sm font-medium">سيتم إنشاء مكاتبة جديدة ملحقة بالمستند الأصلي</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white/5 p-6 rounded-[24px] border border-white/10 backdrop-blur-md">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 text-right" dir="rtl">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-purple-300 font-black text-[10px] uppercase tracking-widest">المكاتبة الأصلية</span>
+                                            <span className="text-2xl font-black text-white">{selectedDoc?.DOC_NO}</span>
+                                        </div>
+                                        <div className="flex-1 md:mx-12">
+                                            <span className="text-purple-300 font-bold text-[10px] uppercase tracking-widest block mb-1">موضوع الإلحاق</span>
+                                            <Input
+                                                value={replySubject}
+                                                onChange={(e) => setReplySubject(e.target.value)}
+                                                className="bg-white/10 border-white/20 text-white placeholder:text-white/20 h-14 rounded-2xl focus:ring-purple-500 font-black text-lg text-right"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8 bg-slate-50/50" dir="rtl">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    {/* Left Column: Template & Recipients */}
+                                    <div className="space-y-8">
+                                        <section className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <Badge className="bg-purple-100 text-purple-600 border-none">1</Badge>
+                                                <h3 className="font-black text-slate-800">اختر قالب المكاتبة</h3>
+                                            </div>
+                                            <div className="relative">
+                                                <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                <Input
+                                                    placeholder="ابحث عن نوع المكاتبة..."
+                                                    className="h-14 pr-11 bg-slate-50 border-none rounded-2xl font-bold"
+                                                    value={kindSearchTerm}
+                                                    onChange={(e) => {
+                                                        setKindSearchTerm(e.target.value);
+                                                        fetchDocKinds(e.target.value);
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2">
+                                                {docKinds.map((kind, idx) => (
+                                                    <button
+                                                        key={`${kind.id}-${idx}`}
+                                                        onClick={() => setReplyDocType(kind.id.toString())}
+                                                        className={`p-4 rounded-2xl border-2 transition-all text-right group ${replyDocType === kind.id.toString() ? "bg-purple-600 border-purple-600 text-white shadow-lg scale-[0.98]" : "bg-white border-slate-100 hover:border-purple-200 text-slate-600"}`}
+                                                    >
+                                                        <p className="font-black text-sm">{kind.DOC_DESC_A}</p>
+                                                        <p className={`text-[10px] uppercase font-bold ${replyDocType === kind.id.toString() ? "text-purple-100" : "text-slate-400"}`}>{kind.DOC_DESC}</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </section>
+                                    </div>
+
+                                    {/* Right Column: Attachments & Target */}
+                                    <div className="space-y-8">
+                                        {/* Recipients Section */}
+                                        <section className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <Badge className="bg-purple-100 text-purple-600 border-none">2</Badge>
+                                                <h3 className="font-black text-slate-800">توجيه الإلحاق إلى</h3>
+                                            </div>
+                                            <div className="relative">
+                                                <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                <Input
+                                                    placeholder="ابحث عن الموظفين..."
+                                                    className="h-14 pr-11 bg-slate-50 border-none rounded-2xl font-bold font-black"
+                                                    value={employeeSearch}
+                                                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                                                />
+                                            </div>
+                                            {employeeSearch && (
+                                                <div className="bg-slate-50 rounded-2xl max-h-[150px] overflow-y-auto p-2 space-y-1">
+                                                    {employees.filter(e => e.EMP_NAME?.includes(employeeSearch) || e.EMP_NUM?.toString().includes(employeeSearch)).map(emp => (
+                                                        <button
+                                                            key={emp.EMP_NUM}
+                                                            onClick={() => {
+                                                                if (!selectedEmps.some(e => e.EMP_NUM === emp.EMP_NUM)) {
+                                                                    setSelectedEmps([...selectedEmps, { ...emp, customSituation: "7" }]);
+                                                                }
+                                                                setEmployeeSearch("");
+                                                            }}
+                                                            className="w-full p-3 text-right hover:bg-white rounded-xl font-bold text-sm transition-colors flex items-center justify-between"
+                                                        >
+                                                            <span className="font-black">{emp.EMP_NAME}</span>
+                                                            <span className="text-[10px] text-slate-400">{emp.SEC_N}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                                                {selectedEmps.map(emp => (
+                                                    <div key={emp.EMP_NUM} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-slate-200 shadow-sm">
+                                                                    <User className="w-5 h-5 text-slate-400" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-black text-slate-800 text-sm">{emp.EMP_NAME}</p>
+                                                                    <p className="text-[10px] text-slate-400 font-bold">{emp.SEC_N}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={() => setSelectedEmps(selectedEmps.filter(e => e.EMP_NUM !== emp.EMP_NUM))} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/50">
+                                                            {situations.map(sit => (
+                                                                <button
+                                                                    key={sit.SITUATION_C}
+                                                                    onClick={() => {
+                                                                        setSelectedEmps(selectedEmps.map(e => e.EMP_NUM === emp.EMP_NUM ? { ...e, customSituation: sit.SITUATION_C.toString() } : e));
+                                                                    }}
+                                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${emp.customSituation === sit.SITUATION_C.toString() ? "bg-purple-600 text-white shadow-md shadow-purple-100" : "bg-white text-slate-500 border border-slate-200 hover:border-purple-200"}`}
+                                                                >
+                                                                    {sit.SITUATION_DESC}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </section>
+
+                                        {/* Attachments Section */}
+                                        <section className="bg-slate-900 p-6 rounded-[32px] text-white space-y-4 shadow-xl">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <Paperclip className="w-5 h-5 text-purple-400" />
+                                                    <h3 className="font-black">مرفقات الإلحاق</h3>
+                                                </div>
+                                                <Badge className="bg-purple-500/20 text-purple-300 border-none px-3 font-black">
+                                                    {replyExistingAttachments.length + replyNewAttachments.length} ملف
+                                                </Badge>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                {/* Original Files (read-only in this context or removable) */}
+                                                {replyExistingAttachments.map((path, idx) => (
+                                                    <div key={`exist-${idx}`} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-2xl group hover:bg-white/10 transition-all cursor-pointer"
+                                                        onClick={() => {
+                                                            openFile(path, selectedDoc?.DOC_NO);
+                                                        }}
+                                                    >
+                                                        <div className="flex items-center gap-3 overflow-hidden">
+                                                            <Files className="w-4 h-4 text-purple-400 shrink-0" />
+                                                            <span className="text-xs font-bold truncate opacity-70" dir="ltr">{path.split('\\').pop()}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Search className="w-3 h-3 text-white/20 group-hover:text-purple-400 transition-colors" />
+                                                            <Badge variant="outline" className="text-[8px] border-white/20 text-white/40">ملف أصلي</Badge>
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                {/* New Files */}
+                                                {replyNewAttachments.map((file, idx) => (
+                                                    <div key={`new-${idx}`} className="flex items-center justify-between p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl animate-in slide-in-from-right-2 duration-300">
+                                                        <div className="flex items-center gap-3 overflow-hidden">
+                                                            <Paperclip className="w-4 h-4 text-emerald-400 shrink-0" />
+                                                            <span className="text-xs font-black truncate text-purple-100">{file.name}</span>
+                                                        </div>
+                                                        <button onClick={() => setReplyNewAttachments(replyNewAttachments.filter((_, i) => i !== idx))} className="text-white/20 hover:text-red-400 transition-colors p-1">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="pt-2">
+                                                <Button
+                                                    asChild
+                                                    variant="outline"
+                                                    className="w-full h-14 rounded-2xl border-white/10 bg-white/5 hover:bg-white/10 text-white font-black group"
+                                                >
+                                                    <label className="cursor-pointer flex items-center justify-center gap-2">
+                                                        <Paperclip className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                                                        إضافة مرفقات جديدة
+                                                        <input
+                                                            type="file"
+                                                            multiple
+                                                            className="hidden"
+                                                            onChange={(e) => {
+                                                                const files = Array.from(e.target.files || []);
+                                                                setReplyNewAttachments([...replyNewAttachments, ...files]);
+                                                            }}
+                                                        />
+                                                    </label>
+                                                </Button>
+                                            </div>
+                                        </section>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Footer Actions */}
+                            <div className="p-8 bg-white border-t border-slate-100 flex items-center justify-between">
+                                <div className="flex items-center gap-6">
+                                    {!replySavedPath ? (
+                                        <Button
+                                            onClick={handleCreateReply}
+                                            disabled={isCreatingReply || !replyDocType || selectedEmps.length === 0}
+                                            className="h-16 px-12 bg-slate-900 hover:bg-purple-600 text-white rounded-[24px] font-black text-lg transition-all shadow-xl shadow-slate-200"
+                                        >
+                                            {isCreatingReply ? <Loader2 className="ml-2 h-5 w-5 animate-spin" /> : <FileText className="ml-2 h-5 w-5" />}
+                                            إنشاء الإلحاق (Word)
+                                        </Button>
+                                    ) : (
+                                        <div className="flex items-center gap-4">
+                                            <Button
+                                                onClick={() => openFile(replySavedPath, null)}
+                                                className="h-16 px-8 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-[24px] font-black border-2 border-purple-100"
+                                            >
+                                                <ExternalLink className="ml-2 h-5 w-5" />
+                                                فتح الملف مرة ثانية
+                                            </Button>
+                                            <Button
+                                                onClick={executeReplyArchive}
+                                                disabled={isArchivingReply}
+                                                className="h-16 px-16 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[24px] font-black text-xl shadow-xl shadow-emerald-100 animate-pulse-slow"
+                                            >
+                                                {isArchivingReply ? <Loader2 className="ml-2 h-6 w-6 animate-spin" /> : <Send className="ml-2 h-6 w-6" />}
+                                                إرسال الإلحاق النهائي
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3 text-slate-400">
+                                    <AlertTriangle className="w-5 h-5" />
+                                    <span className="text-sm font-bold">سيتم إرفاق المكاتبة الأصلية تلقائياً مع هذا الإلحاق</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
             {/* Modal اختيار المرفقات (عند وجود مرفقات متعددة) */}
             {attachmentSelection && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -1800,8 +2233,8 @@ export default function ExportPage() {
                                             !notifRecipients.some(r => r.EMP_NUM === emp.EMP_NUM) &&
                                             (emp.EMP_NAME.includes(notifEmpSearch) || emp.EMP_NUM.toString().includes(notifEmpSearch))
                                         ).length === 0 && (
-                                            <p className="text-center text-slate-400 font-bold text-sm py-4">لا توجد نتائج</p>
-                                        )}
+                                                <p className="text-center text-slate-400 font-bold text-sm py-4">لا توجد نتائج</p>
+                                            )}
                                     </div>
                                 )}
 

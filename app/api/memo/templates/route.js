@@ -3,9 +3,13 @@ import { getConnection2 } from "@/lib/oracle";
 import { getSession } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
+import util from "util";
+import { exec } from "child_process";
+import os from "os";
 
+const execPromise = util.promisify(exec);
 const TEMPLATE_DIR = `\\\\192.168.13.12\\homes\\TAMPLET`;
-const EMPTY_DOC_PATH = path.join(TEMPLATE_DIR, "EMPTY_DOC_WEB.docm"); // الملف الفارغ الجاهز
+const EMPTY_DOC_PATH = path.join(TEMPLATE_DIR, "EMPTY_DOC_WEB.docm"); // للمحافظة على التوافقية لو احتجناه
 
 export async function GET(req) {
     const session = await getSession();
@@ -29,15 +33,19 @@ export async function GET(req) {
             files = fs.readdirSync(TEMPLATE_DIR)
                 .filter(file => {
                     const lower = file.toLowerCase();
-                    return lower.endsWith(".docm") &&
+                    const validExt = lower.endsWith(".docm") || lower.endsWith(".docx") || lower.endsWith(".doc");
+                    return validExt &&
                         lower !== "empty_doc_web.docm" && // نخفي الملف الفارغ من القائمة
                         lower !== "blank_template.docm";   // لو عندك قالب تاني نخفيه
                 })
-                .map(file => ({
-                    fileName: file,
-                    pureName: file.replace(/\.docm$/i, ""),
-                    path: path.join(TEMPLATE_DIR, file)
-                }));
+                .map(file => {
+                    const ext = path.extname(file);
+                    return {
+                        fileName: file,
+                        pureName: file.replace(new RegExp(`${ext}$`, "i"), ""),
+                        path: path.join(TEMPLATE_DIR, file)
+                    };
+                });
         }
 
         return NextResponse.json({
@@ -90,20 +98,27 @@ export async function POST(req) {
             fs.mkdirSync(TEMPLATE_DIR, { recursive: true });
         }
 
+        let finalTargetPath = "";
+
         if (sourceFile === "UPLOAD" && uploadedFile) {
             // رفع ملف من الجهاز
+            const ext = path.extname(uploadedFile.name) || ".docx";
+            finalTargetPath = path.join(TEMPLATE_DIR, `${nameEn}${ext}`);
             const buffer = Buffer.from(await uploadedFile.arrayBuffer());
-            fs.writeFileSync(targetPath, buffer);
+            fs.writeFileSync(finalTargetPath, buffer);
 
         } else if (sourceFile && sourceFile !== "BLANK" && sourceFile !== "UPLOAD") {
             // نسخ من قالب موجود
             const sourcePath = path.join(TEMPLATE_DIR, sourceFile);
+            const ext = path.extname(sourceFile) || ".docx";
+            finalTargetPath = path.join(TEMPLATE_DIR, `${nameEn}${ext}`);
+            
             if (fs.existsSync(sourcePath)) {
                 let copied = false;
                 let attempts = 0;
                 while (!copied && attempts < 3) {
                     try {
-                        fs.copyFileSync(sourcePath, targetPath);
+                        fs.copyFileSync(sourcePath, finalTargetPath);
                         copied = true;
                     } catch (copyErr) {
                         attempts++;
@@ -119,31 +134,37 @@ export async function POST(req) {
             }
 
         } else if (sourceFile === "BLANK") {
-            // ============================================
-            // نسخ من الملف الفارغ الجاهز
-            // ============================================
+           
+            finalTargetPath = path.join(TEMPLATE_DIR, `${nameEn}.docx`);
+            const psScript = `
+                $word = New-Object -ComObject Word.Application;
+                $word.Visible = $false;
+                $word.DisplayAlerts = 0;
+                try {
+                    $doc = $word.Documents.Add();
+                    # wdFormatXMLDocument = 12 (.docx)
+                    $doc.SaveAs([ref]'${finalTargetPath}', [ref]12);
+                    $doc.Close(0);
+                } catch {
+                    Write-Error $_.Exception.Message
+                    exit 1
+                } finally {
+                    $word.Quit();
+                    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
+                    [GC]::Collect();
+                    [GC]::WaitForPendingFinalizers();
+                }
+            `;
+            const tempPs = path.join(os.tmpdir(), `create_blank_${Date.now()}.ps1`);
+            fs.writeFileSync(tempPs, psScript, { encoding: 'utf8' });
+            await execPromise(`powershell -ExecutionPolicy Bypass -File "${tempPs}"`);
+            if (fs.existsSync(tempPs)) fs.unlinkSync(tempPs);
 
-            if (!fs.existsSync(EMPTY_DOC_PATH)) {
+            if (!fs.existsSync(finalTargetPath)) {
                 return NextResponse.json({
                     success: false,
-                    error: `الملف الفارغ غير موجود في المسار: ${EMPTY_DOC_PATH}. يرجى التأكد من وجود ملف EMPTY_DOC_WEB.docm`
+                    error: "حدث خطأ أثناء محاولة إنشاء ملف الوورد الجديد عبر PowerShell."
                 }, { status: 500 });
-            }
-
-            let copied = false;
-            let attempts = 0;
-            while (!copied && attempts < 3) {
-                try {
-                    fs.copyFileSync(EMPTY_DOC_PATH, targetPath);
-                    copied = true;
-                } catch (copyErr) {
-                    attempts++;
-                    if (copyErr.code === 'EBUSY' && attempts < 3) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    } else {
-                        throw copyErr;
-                    }
-                }
             }
 
         } else {
@@ -153,7 +174,7 @@ export async function POST(req) {
         return NextResponse.json({
             success: true,
             id: nextId,
-            path: targetPath,
+            path: finalTargetPath,
             message: "تم إنشاء النوع الجديد وتجهيز القالب"
         });
 
@@ -190,10 +211,20 @@ export async function DELETE(req) {
         );
 
         // Delete from Disk
-        const filePath = path.join(TEMPLATE_DIR, fileName.toLowerCase().endsWith(".docm") ? fileName : `${fileName}.docm`);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
+        const extensions = [".docm", ".docx", ".doc"];
+        let baseName = fileName;
+        extensions.forEach(ext => {
+            if (baseName.toLowerCase().endsWith(ext)) {
+                baseName = baseName.slice(0, -ext.length);
+            }
+        });
+
+        extensions.forEach(ext => {
+            const filePath = path.join(TEMPLATE_DIR, `${baseName}${ext}`);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        });
 
         return NextResponse.json({ success: true, message: "تم حذف النوع والقالب بنجاح" });
 

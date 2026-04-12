@@ -32,15 +32,6 @@ export async function POST(req) {
 
         const isLocal = localIps.some(ip => clientIp.includes(ip));
 
-        if (!isLocal) {
-            // هامه: إذا كان المستخدم يفتح من جهاز بعيد، نخبره بأن عليه استخدام البروتوكول المحلي
-            return NextResponse.json({
-                success: true,
-                isRemote: true,
-                message: "يرجى استخدام البروتوكول المحلي للفتح"
-            });
-        }
-
         // فك تشفير المسار
         let decodedPath = decodeURIComponent(filePath);
 
@@ -49,13 +40,41 @@ export async function POST(req) {
             finalPath = "\\" + finalPath;
         }
 
-        console.log("📂 Server Opening File Locally for Host:", finalPath);
+        // ذكاء اصطناعي لتخمين الامتداد الصحيح إذا لم يكن الملف موجوداً كمسار مجرد أو كان بدون امتداد
+        let resolvedPath = finalPath;
+        if (!fs.existsSync(resolvedPath)) {
+            const noExt = resolvedPath.replace(/\.(docm|docx|doc)$/i, "");
+            if (fs.existsSync(noExt + ".docx")) {
+                resolvedPath = noExt + ".docx";
+            } else if (fs.existsSync(noExt + ".docm")) {
+                resolvedPath = noExt + ".docm";
+            } else if (fs.existsSync(noExt + ".doc")) {
+                resolvedPath = noExt + ".doc";
+            }
+        }
 
-        exec(`start "" "${finalPath}"`, (error) => {
+        if (!isLocal) {
+            // هامه: إذا كان المستخدم يفتح من جهاز بعيد، نخبره بأن عليه استخدام البروتوكول المحلي
+            return NextResponse.json({
+                success: true,
+                isRemote: true,
+                resolvedPath: resolvedPath,
+                message: "يرجى استخدام البروتوكول المحلي للفتح"
+            });
+        }
+
+        console.log("📂 Server Opening File Locally for Host:", resolvedPath);
+
+        exec(`start "" "${resolvedPath}"`, (error) => {
             if (error) console.error("Exec Error:", error);
         });
 
-        return NextResponse.json({ success: true, isRemote: false, message: "تم الفتح محلياً بنجاح" });
+        return NextResponse.json({ 
+            success: true, 
+            isRemote: false, 
+            message: "تم الفتح محلياً بنجاح",
+            resolvedPath: resolvedPath
+        });
 
     } catch (err) {
         console.error("Open Local API Error:", err);

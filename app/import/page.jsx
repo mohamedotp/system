@@ -117,6 +117,13 @@ const SPECIAL_EMP_SHORT_LABELS = {
 
 // المستخدمين الممنوعين من رؤية الملفات في مكاتبات الخارجى
 const RESTRICTED_VIEW_USERS = ["1714", "1716", "1712"];
+// خيارات أولوية المكاتبة (DOC_STATUS)
+const DOC_STATUS_OPTIONS = [
+    { value: 0, label: "عادي", color: "bg-slate-100 text-slate-600 border-slate-200", badgeClass: "", icon: "" },
+    { value: 1, label: "هام", color: "bg-amber-50 text-amber-700 border-amber-300", badgeClass: "bg-amber-100 text-amber-700 border-amber-300", icon: "⭐" },
+    { value: 2, label: "عاجل", color: "bg-red-50 text-red-700 border-red-300", badgeClass: "bg-red-100 text-red-700 border-red-300", icon: "⚡" },
+    { value: 3, label: "هام وعاجل", color: "bg-rose-600 text-white border-rose-600", badgeClass: "bg-rose-600 text-white border-none", icon: "🔥" },
+];
 // الحالات المطلوبة
 const SITUATION_OPTIONS = [
     { id: 7, label: "أتخاذ اللازم" },
@@ -145,14 +152,15 @@ export default function ImportPage() {
 
     // الفلاتر
     const today = new Date().toISOString().split('T')[0];
-    const [fromDate, setFromDate] = useState(today);
-    const [toDate, setToDate] = useState(today);
+    const [fromDate, setFromDate] = useState("");
+    const [toDate, setToDate] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [incoming, setIncoming] = useState(false);
     const [internal, setInternal] = useState(false);
     const [answered, setAnswered] = useState(false);
-    const [pending, setPending] = useState(false);
+    const [pending, setPending] = useState(true);
     const [allPending, setAllPending] = useState(false);
+    const [isExactSearch, setIsExactSearch] = useState(false); // بحث دقيق برقم المكاتبة فقط
 
     // حالات شاشة التحويل
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -172,6 +180,7 @@ export default function ImportPage() {
     const [selectedEmps, setSelectedEmps] = useState([]);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [attachmentSelection, setAttachmentSelection] = useState(null);
+    const [docStatus, setDocStatus] = useState(0); // حالة أولوية المكاتبة عند التحويل
 
     // حالات المرفقات في التحويل (للمستخدم 1714)
     const [transferAttachments, setTransferAttachments] = useState([]);
@@ -218,7 +227,7 @@ export default function ImportPage() {
                     setIsFiltersLoaded(true);
 
                     // ✅ إذا كان هناك بحث قادم من الرابط، استدعِ البيانات فوراً
-                    if (loadedFilters && loadedFilters.searchQuery) {
+                    if (loadedFilters && (loadedFilters.searchQuery || loadedFilters.search)) {
                         fetchData(loadedFilters);
                     }
                 }
@@ -226,7 +235,7 @@ export default function ImportPage() {
                 console.error("Error fetching user session:", err);
                 const loadedFilters = loadFilterState();
                 setIsFiltersLoaded(true);
-                if (loadedFilters && loadedFilters.searchQuery) {
+                if (loadedFilters && (loadedFilters.searchQuery || loadedFilters.search)) {
                     fetchData(loadedFilters);
                 }
             }
@@ -256,7 +265,7 @@ export default function ImportPage() {
             pending,
             allPending
         };
-        localStorage.setItem('importPageFilters', JSON.stringify(filterState));
+        localStorage.setItem('importPageFilters_v2', JSON.stringify(filterState));
     };
 
     // دالة لاستعادة حالة الفلاتر
@@ -266,9 +275,11 @@ export default function ImportPage() {
             const urlParams = new URLSearchParams(window.location.search);
             const urlSearch = urlParams.get("search");
             const urlDate = urlParams.get("date");
+            const urlIsExact = urlParams.get("isExact") === "true";
 
             if (urlSearch) {
                 setSearchQuery(urlSearch);
+                setIsExactSearch(urlIsExact);
 
                 // إذا كان في تاريخ مرسل، استخدمه كفلتر بداية ونهاية
                 if (urlDate) {
@@ -286,6 +297,7 @@ export default function ImportPage() {
                 setAllPending(false);
                 return {
                     searchQuery: urlSearch,
+                    isExact: urlIsExact,
                     fromDate: urlDate || "",
                     toDate: urlDate || "",
                     incoming: false,
@@ -297,17 +309,17 @@ export default function ImportPage() {
             }
         }
 
-        const savedFilters = localStorage.getItem('importPageFilters');
+        const savedFilters = localStorage.getItem('importPageFilters_v2');
         if (savedFilters) {
             try {
                 const parsed = JSON.parse(savedFilters);
-                setFromDate(parsed.fromDate || today);
-                setToDate(parsed.toDate || today);
+                setFromDate(parsed.fromDate !== undefined ? parsed.fromDate : "");
+                setToDate(parsed.toDate !== undefined ? parsed.toDate : "");
                 setSearchQuery(parsed.searchQuery || "");
                 setIncoming(parsed.incoming || false);
                 setInternal(parsed.internal || false);
                 setAnswered(parsed.answered || false);
-                setPending(parsed.pending || false);
+                setPending(parsed.pending !== undefined ? parsed.pending : true);
                 setAllPending(parsed.allPending || false);
 
                 // إرجاع الفلاتر المحملة لاستخدامها في fetchData
@@ -416,7 +428,7 @@ export default function ImportPage() {
         setReplyDocType("");
         // تجهيز المرفقات الأصلية والمستند الأساسي ليكونوا مرفقات تلقائية في الرد
         let initialAtts = [];
-        if (item.FILE_NAME) initialAtts.push(item.FILE_NAME);
+        if (item.FILE_NAME && item.DOC_TYPE !== 27) initialAtts.push(item.FILE_NAME);
 
         // استخدام قائمة المرفقات الجديدة (ATTACHMENTS_LIST) إذا كانت موجودة
         if (item.ATTACHMENTS_LIST && item.ATTACHMENTS_LIST.length > 0) {
@@ -503,7 +515,7 @@ export default function ImportPage() {
 
                 const uploadJson = await uploadRes.json();
 
-                if (uploadJson.success) {
+                if (uploadJson.success) { 
                     // تحويل المرفقات المرفوعة إلى التنسيق المطلوب للتحويل
                     attachmentsData = uploadJson.attachments.map(att => ({
                         path: att.path,
@@ -521,6 +533,7 @@ export default function ImportPage() {
                 body: JSON.stringify({
                     docNo: selectedDoc.DOC_NO,
                     attachments: attachmentsData,
+                    docStatus,
                     recipients: selectedEmps.map(e => ({
                         empNum: e.EMP_NUM,
                         situationId: e.customSituation || selectedSituation,
@@ -541,6 +554,7 @@ export default function ImportPage() {
                 setIsTransferModalOpen(false);
                 setTransferAttachments([]);
                 setIsConfirmOpen(false);
+                setDocStatus(0); // إعادة تعيين حالة الأولوية
                 fetchData();
             } else {
                 // ✅ عرض رسالة الخطأ مع الموظفين الممنوعين
@@ -678,7 +692,7 @@ export default function ImportPage() {
             let params = new URLSearchParams();
 
             // استخدام القيم من options لو موجودة، وإلا نستخدم الـ state
-            const searchVal = options.search !== undefined ? options.search : searchQuery;
+            const searchVal = options.search !== undefined ? options.search : (options.searchQuery !== undefined ? options.searchQuery : searchQuery);
             const isAllPending = options.allPending !== undefined ? options.allPending : allPending;
             const isIncoming = options.incoming !== undefined ? options.incoming : incoming;
             const isInternal = options.internal !== undefined ? options.internal : internal;
@@ -711,6 +725,10 @@ export default function ImportPage() {
             // البحث
             if (searchVal) {
                 params.append("search", searchVal);
+                const exactFlag = options.isExact !== undefined ? options.isExact : isExactSearch;
+                if (exactFlag) {
+                    params.append("isExact", "true");
+                }
             }
 
             const res = await fetch(`/api/import?${params.toString()}`);
@@ -738,27 +756,28 @@ export default function ImportPage() {
     };
     const resetFilters = () => {
         const defaultFilters = {
-            fromDate: today,
-            toDate: today,
+            fromDate: "",
+            toDate: "",
             searchQuery: "",
             incoming: false,
             internal: false,
             answered: false,
-            pending: false,
+            pending: true,
             allPending: false
         };
 
-        setFromDate(today);
-        setToDate(today);
+        setFromDate("");
+        setToDate("");
         setSearchQuery("");
         setIncoming(false);
         setInternal(false);
         setAnswered(false);
-        setPending(false);
+        setPending(true);
         setAllPending(false);
+        setIsExactSearch(false);
 
         // حذف الفلاتر المحفوظة
-        localStorage.removeItem('importPageFilters');
+        localStorage.removeItem('importPageFilters_v2');
 
         // جلب البيانات بدون فلاتر
         fetchData(defaultFilters);
@@ -776,7 +795,7 @@ export default function ImportPage() {
         if (isFiltersLoaded) {
             fetchData();
         }
-    }, [incoming, internal, answered, pending, allPending, isFiltersLoaded]);
+    }, [incoming, internal, answered, pending, allPending, isFiltersLoaded, isExactSearch]);
 
     let filterText = "";
 
@@ -806,7 +825,8 @@ export default function ImportPage() {
 
     const handleSearch = (e) => {
         e.preventDefault();
-        fetchData();
+        setIsExactSearch(false); // أي بحث يدوي من المستخدم يلغي وضع "البحث الدقيق" القادم من الإشعارات
+        fetchData({ isExact: false });
     };
 
     const openFile = async (fileName, docNo) => {
@@ -1065,7 +1085,10 @@ export default function ImportPage() {
                                                 placeholder="رقم المكاتبة أو الموضوع..."
                                                 className="h-11 pr-10 bg-white border-slate-200 focus:ring-2 focus:ring-blue-100 transition-all rounded-xl text-sm font-bold shadow-sm placeholder:font-medium"
                                                 value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                onChange={(e) => {
+                                                    setSearchQuery(e.target.value);
+                                                    setIsExactSearch(false); // تصفير زر البحث الدقيق بمجرد الكتابة
+                                                }}
                                             />
                                         </div>
                                     </div>
@@ -1196,12 +1219,12 @@ export default function ImportPage() {
                                                     onClick={() => handleOpenTransfer(item)}
                                                     className={`
                                                         transition-all duration-200 group cursor-pointer animate-in fade-in slide-in-from-right-4
-                                                        ${item.ANSERED === 1
-                                                            ? "bg-white"
-                                                            : "bg-slate-100"
+                                                        ${item.DOC_STATUS > 0
+                                                            ? "bg-red-50 hover:bg-red-100"
+                                                            : item.ANSERED === 1 ? "bg-white hover:bg-slate-50" : "bg-slate-100 hover:bg-slate-200"
                                                         }
                                                         ${(!item.SEEN_FLAG || item.SEEN_FLAG === 0) ? "font-bold" : "font-normal"}
-                                                        border-b border-slate-100
+                                                        border-b ${item.DOC_STATUS > 0 ? "border-red-200" : "border-slate-100"}
                                                     `}
                                                     style={{ animationDelay: `${index * 30}ms`, animationFillMode: 'both' }}
                                                 >
@@ -1212,27 +1235,35 @@ export default function ImportPage() {
                                                                     <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" title="جديد" />
                                                                 )}
                                                                 {item.FLAG === 2 && <Lock className="w-4 h-4 text-red-500" title="مغلق" />}
-                                                                <span className={`text-lg group-hover:text-blue-600 transition-colors ${(!item.SEEN_FLAG || item.SEEN_FLAG === 0) ? "font-black text-slate-950" : "font-bold text-slate-700"}`}>
+                                                                <span className={`text-lg transition-colors ${item.DOC_STATUS > 0 ? "text-red-700 font-black" : (!item.SEEN_FLAG || item.SEEN_FLAG === 0) ? "font-black text-slate-950" : "font-bold text-slate-700"} group-hover:text-blue-600`}>
                                                                     {item.DOC_NO}
                                                                 </span>
                                                             </div>
                                                             {(!item.SEEN_FLAG || item.SEEN_FLAG === 0) && (
                                                                 <Badge className="bg-blue-600 text-white border-none text-[8px] px-1 py-0 h-4 min-w-[30px] justify-center">جديد</Badge>
                                                             )}
+                                                            {item.DOC_STATUS > 0 && (() => {
+                                                                const opt = DOC_STATUS_OPTIONS.find(o => o.value === item.DOC_STATUS);
+                                                                return opt ? (
+                                                                    <Badge className={`${opt.badgeClass} border text-[9px] px-1.5 py-0 h-4 font-black`}>
+                                                                        {opt.icon} {opt.label}
+                                                                    </Badge>
+                                                                ) : null;
+                                                            })()}
                                                         </div>
                                                     </td>
 
                                                     <td className="px-6 py-5 text-right font-bold text-slate-600">
                                                         <div className="flex flex-col gap-0.5">
-                                                             <span className="text-sm">
-                                                                 {item.DOC_DATE_STR ? (item.DOC_DATE_STR.includes(' ') ? item.DOC_DATE_STR.split(' ')[0].split('-').reverse().join('/') : item.DOC_DATE_STR.split('-').reverse().join('/')) : '-'}
-                                                             </span>
-                                                             {item.DOC_DATE_STR?.includes(' ') && (
-                                                                 <span className="text-[10px] text-slate-400 font-medium">
-                                                                     {item.DOC_DATE_STR.split(' ')[1]}
-                                                                 </span>
-                                                             )}
-                                                         </div>
+                                                            <span className="text-sm">
+                                                                {item.DOC_DATE_STR ? (item.DOC_DATE_STR.includes(' ') ? item.DOC_DATE_STR.split(' ')[0].split('-').reverse().join('/') : item.DOC_DATE_STR.split('-').reverse().join('/')) : '-'}
+                                                            </span>
+                                                            {item.DOC_DATE_STR?.includes(' ') && (
+                                                                <span className="text-[10px] text-slate-400 font-medium">
+                                                                    {item.DOC_DATE_STR.split(' ')[1]}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-5 text-right max-w-sm">
                                                         <p className={`${(!item.SEEN_FLAG || item.SEEN_FLAG === 0) ? "font-black text-slate-900" : "font-bold text-slate-700"} leading-relaxed line-clamp-2`}>{item.SUBJECT}</p>
@@ -1346,7 +1377,7 @@ export default function ImportPage() {
                                                             </Tooltip>
                                                         )}
 
-                                                        {item.FILE_NAME && (
+                                                        {item.FILE_NAME && item.DOC_TYPE !== 27 && (
                                                             <Button
                                                                 size="sm"
                                                                 variant="ghost"
@@ -1471,36 +1502,9 @@ export default function ImportPage() {
                                                                         toast.error("فشل تحديث الحالة");
                                                                     }
                                                                 }}
+                                                                title="تم"
                                                             >
-                                                                <Badge className="bg-green-50 text-green-600 border-none font-black px-4 py-2 rounded-xl cursor-pointer"> تم الرد</Badge>
-                                                            </Button>
-                                                        )}
-
-                                                        {item.ANSERED === 1 && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="h-9 w-9 p-0 rounded-xl text-orange-600 hover:bg-orange-50 transition-colors"
-                                                                onClick={async (e) => {
-                                                                    e.stopPropagation();
-                                                                    if (!confirm("هل أنت متأكد من إلغاء تأكيد الرد؟")) return;
-                                                                    try {
-                                                                        const res = await fetch("/api/import/updateAnswered", {
-                                                                            method: "POST",
-                                                                            headers: { "Content-Type": "application/json" },
-                                                                            body: JSON.stringify({ docNo: item.DOC_NO, status: 0 }),
-                                                                        });
-                                                                        const json = await res.json();
-                                                                        if (json.success) {
-                                                                            toast.success("تم إلغاء تأكيد الرد");
-                                                                            fetchData();
-                                                                        }
-                                                                    } catch {
-                                                                        toast.error("فشل إلغاء الرد");
-                                                                    }
-                                                                }}
-                                                            >
-                                                                <Badge className="bg-orange-50 text-orange-600 border-none font-black px-4 py-2 rounded-xl cursor-pointer">إلغاء الرد</Badge>
+                                                                <Check className="w-5 h-5" />
                                                             </Button>
                                                         )}
 
@@ -1633,7 +1637,7 @@ export default function ImportPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
-                                                    {selectedDoc.FILE_NAME && !(RESTRICTED_VIEW_USERS.includes(String(user?.empNum)) && selectedDoc.DOC_TYPE === 27) && (
+                                                    {selectedDoc.FILE_NAME && selectedDoc.DOC_TYPE !== 27 && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
@@ -1641,7 +1645,6 @@ export default function ImportPage() {
                                                             onClick={() => openFile(selectedDoc.FILE_NAME, selectedDoc.DOC_NO)}
                                                         >
                                                             <FileText className="w-4 h-4" />
-
                                                             عرض المكاتبة
                                                         </Button>
                                                     )}
@@ -1668,6 +1671,29 @@ export default function ImportPage() {
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* ✅ محدد أولوية المكاتبة - مخصص لـ RESTRICTED_VIEW_USERS */}
+                                            {RESTRICTED_VIEW_USERS.includes(String(user?.empNum)) && (
+                                                <div className="mt-4 pt-4 border-t border-white/10" dir="rtl">
+                                                    <span className="text-blue-400 font-black text-[10px] uppercase tracking-widest block mb-3">أولوية المكاتبة</span>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {DOC_STATUS_OPTIONS.map(opt => (
+                                                            <button
+                                                                key={opt.value}
+                                                                onClick={() => setDocStatus(opt.value)}
+                                                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-black text-sm transition-all ${docStatus === opt.value
+                                                                        ? opt.value === 0 ? "bg-slate-700 border-slate-500 text-white scale-105"
+                                                                            : opt.color + " scale-105 shadow-lg"
+                                                                        : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+                                                                    }`}
+                                                            >
+                                                                {opt.icon && <span>{opt.icon}</span>}
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (
@@ -1700,7 +1726,7 @@ export default function ImportPage() {
                                                                 <span className="text-white font-black text-sm">{selectedDoc.DOC_DATE_STR}</span>
                                                             </div>
                                                             <div className="flex gap-2">
-                                                                {selectedDoc.FILE_NAME && (
+                                                                {selectedDoc.FILE_NAME && selectedDoc.DOC_TYPE !== 27 && (
                                                                     <Button
                                                                         size="sm"
                                                                         variant="outline"
@@ -1827,7 +1853,7 @@ export default function ImportPage() {
                                                                             px-1 py-1 border-b-2 border-blue-100 min-w-[68px] max-w-[110px] text-center transition-all bg-blue-50/70
                                                                             ${idx === arr.length - 1 ? 'rounded-tl-[20px]' : ''}
                                                                         `}
-                                                                        style={{ fontSize: "12px" }}
+                                                                        style={{ fontSize: "15px" }}
                                                                     >
                                                                         <div className="flex flex-col items-center gap-1">
                                                                             {/* <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow border-2 border-white
@@ -1837,7 +1863,7 @@ export default function ImportPage() {
                                                                             </div> */}
                                                                             <div className="">
                                                                                 {/* <p className="font-black text-blue-900 text-xs whitespace-nowrap">{emp.EMP_NAME}</p> */}
-                                                                                <p className={`text-[9px] text-blue-600 font-bold ${selectedEmps.some(se => se.EMP_NUM === emp.EMP_NUM) ? "bg-blue-600 text-white" : "bg-slate-200 text-blue-600"}`}>
+                                                                                <p className={`text-[15px] text-blue-600 font-bold ${selectedEmps.some(se => se.EMP_NUM === emp.EMP_NUM) ? "bg-blue-600 text-white" : "bg-slate-200 text-blue-600"}`}>
                                                                                     {SPECIAL_EMP_SHORT_LABELS[emp.EMP_NUM?.toString()] || emp.SEC_N}
                                                                                 </p>
                                                                             </div>
@@ -1851,7 +1877,7 @@ export default function ImportPage() {
                                                             <tr key={sit.id} className={`group transition-colors bg-white ${rowIdx % 2 === 0 ? "bg-blue-50/50" : ""} hover:bg-blue-100/60`}>
                                                                 {/* Action Label Row Header */}
                                                                 <td className="px-2 py-1 font-black text-blue-900 text-xs border-l border-blue-100 bg-blue-100 sticky right-0 z-10 shadow-[4px_0_8px_rgba(0,0,15,0.03)] min-w-[120px]">
-                                                                    <div className="flex items-center gap-2">
+                                                                    <div className="flex items-center gap-2 text-[15px]">
                                                                         <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors
                                                                             ${selectedEmps.some(se => se.customSituation === sit.id.toString()) ? "bg-blue-100 text-blue-600" : "bg-white text-blue-400 border border-blue-100"}
                                                                         `}>

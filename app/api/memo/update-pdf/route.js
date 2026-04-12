@@ -18,7 +18,7 @@ export async function POST(req) {
 
     let connection;
     try {
-        const { docNo, onlyNotify } = await req.json();
+        const { docNo, onlyNotify, skipNotifications } = await req.json();
 
         if (!docNo) {
             return NextResponse.json({ success: false, error: "رقم المكاتبة مطلوب" }, { status: 400 });
@@ -69,53 +69,33 @@ export async function POST(req) {
 
             // 3. استراتيجية التحويل
             const tempDir = os.tmpdir();
-            const tempFileName = `update_${docNo}_${Date.now()}${extension}`;
-            const tempDocPath = path.join(tempDir, tempFileName);
-            const tempPdfPath = tempDocPath.replace(/\.(docm|docx)$/i, '.pdf');
+            // لن نقوم بنسخ ملف الوورد لمسار مؤقت لأن ذلك يفقد الملف ارتباطه بالقالب الأساسي وتضيع مسافات الإنتر
+            // سنفتحه من مساره الأصلي مباشرة، ونقوم بتصدير الـ PDF فقط لمسار مؤقت للتأكد من نجاح التحويل
+            const tempFileName = `update_pdf_${docNo}_${Date.now()}.pdf`;
+            const tempPdfPath = path.join(tempDir, tempFileName);
 
             try {
-                fs.copyFileSync(actualWordPath, tempDocPath);
-            } catch (copyErr) {
-                return NextResponse.json({ success: false, error: "فشل الوصول للملف. تأكد من إغلاقه في الوورد أولاً." }, { status: 500 });
-            }
-
-            try {
-                // محاولة إغلاق أي عمليات Word عالقة قبل البدء لضمان تحرير الملفات
-                await execPromise('taskkill /F /IM winword.exe').catch(() => { });
-                await new Promise(resolve => setTimeout(resolve, 1000)); // انتظر ثانية لضمان إغلاق العمليات بالكامل
+                // انتظار قصير لضمان تزامن نظام الملفات بعد حفظ الـ Word
+                await new Promise(resolve => setTimeout(resolve, 500));
 
                 const psScript = `
                     $word = New-Object -ComObject Word.Application;
                     $word.Visible = $false;
                     $word.DisplayAlerts = 0; 
+                    $word.ScreenUpdating = $false;
                     try {
-                        $doc = $word.Documents.Open('${tempDocPath}', $false, $true);
+                        # نفتح الملف كقراءة فقط (ReadOnly=$true) لضمان عدم المساس بتنسيق المستخدم
+                        $doc = $word.Documents.Open('${actualWordPath}', $false, $true);
                         
-                        # ضبط العرض على وضع الطباعة لضمان الحفاظ على التنسيقات والمسافات
-                        $word.ActiveWindow.View.Type = 3; 
-
-                        # تحديث أي حقول ديناميكية لو وجدت
+                        Start-Sleep -Seconds 1;
                         $doc.Fields.Update();
+                        $doc.Repaginate();
+                        
+                        # التصدير إلى PDF (Format 17 = PDF) من النسخة المفتوحة حالياً
+                        $doc.SaveAs([ref]'${tempPdfPath}', [ref]17);
 
-                        # التصدير بتنسيق ثابت (أفضل من SaveAs للحفاظ على التنسيق)
-                        # OptimizeForPrint = 0, RangeAll = 0, ItemDocument = 0
-                        $doc.ExportAsFixedFormat(
-                            '${tempPdfPath}', 
-                            17, # wdExportFormatPDF
-                            $false, # OpenAfterExport
-                            0, # OptimizeForPrint
-                            0, # RangeAll
-                            1, 1, # From, To
-                            0, # ItemDocument
-                            $true, # IncludeDocProps
-                            $true, # KeepIRM
-                            1, # CreateBookmarks
-                            $true, # DocStructureTags
-                            $true, # BitmapMissingFonts
-                            $false # UseISO19005_1
-                        );
-
-                        $doc.Close(0);
+                        # إغلاق بدون حفظ أي تغييرات (0 = wdDoNotSaveChanges)
+                        $doc.Close(0); 
                     } catch {
                         Write-Error $_.Exception.Message
                         exit 1
@@ -153,7 +133,6 @@ export async function POST(req) {
                     }
                 }
 
-                if (fs.existsSync(tempDocPath)) fs.unlinkSync(tempDocPath);
                 if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
 
             } catch (convErr) {
@@ -167,22 +146,24 @@ export async function POST(req) {
         }
 
         // 4. إرسال إشعارات لكل المستلمين
-        const recipientsRes = await connection.execute(
-            `SELECT GEHA_C FROM RECIP_GEHA_NEW WHERE DOC_NO = :docNo`,
-            { docNo }
-        );
+        if (!skipNotifications) {
+            const recipientsRes = await connection.execute(
+                `SELECT GEHA_C FROM RECIP_GEHA_NEW WHERE DOC_NO = :docNo`,
+                { docNo }
+            );
 
-        const recipients = recipientsRes.rows.map(r => r[0]);
-        const notifMessage = `تم تعديل وتحديث ملف المكاتبة رقم (${docNo}): ${subject}`;
+            const recipients = recipientsRes.rows.map(r => r[0]);
+            const notifMessage = `تم تعديل وتحديث ملف المكاتبة رقم (${docNo}): ${subject}`;
 
-        for (const recipientId of recipients) {
-            if (recipientId && String(recipientId) !== String(session.empNum)) {
-                await sendNotification({
-                    senderId: session.empNum,
-                    receiverId: recipientId,
-                    message: notifMessage,
-                    docNo: docNo
-                });
+            for (const recipientId of recipients) {
+                if (recipientId && String(recipientId) !== String(session.empNum)) {
+                    await sendNotification({
+                        senderId: session.empNum,
+                        receiverId: recipientId,
+                        message: notifMessage,
+                        docNo: docNo
+                    });
+                }
             }
         }
 

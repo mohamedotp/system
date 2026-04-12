@@ -44,208 +44,134 @@ export async function POST(req) {
         const pdfPathOnDisk = actualWordPath.replace(/\.(docm|docx)$/i, ".pdf");
         const basePath = actualWordPath.replace(/\.(docm|docx)$/i, "");
 
-        // 3. استراتيجية النسخ المحلي
-        const tempDir = os.tmpdir();
-        const tempFileName = `arch_${docNo}_${Date.now()}${extension}`;
-        const tempDocPath = path.join(tempDir, tempFileName);
-        const tempPdfPath = tempDocPath.replace(/\.(docm|docx)$/i, '.pdf');
+        // 3. تحديث قاعدة البيانات أولاً لتوفير وقت لتحديث ملف الوورد على الشبكة
+        connection = await getConnection2();
 
-        try {
-            // نسخ الملف من الشبكة إلى السيرفر محلياً
-            fs.copyFileSync(actualWordPath, tempDocPath);
-        } catch (copyErr) {
-            console.error("Temp Copy Error:", copyErr);
-            return NextResponse.json({ success: false, error: "لا يمكن قراءة الملف. تأكد من إغلاقه تماماً المحاولة مرة أخرى." }, { status: 500 });
+        // جلب بيانات المسودة لإكمال الإرسال
+        const draftRes = await connection.execute(
+            `SELECT PLACE_C, EMP_NO, DOC_DATE, SUBJECT, MAIN_DOC, MAIN_DOC_NO, DOC_TYPE, 
+                    NVL(TRANS_TYPE, 2) as TRANS_TYPE, MAIN_DATE, MAIN_DOC_DATE 
+             FROM DOC_DATA_NEW 
+             WHERE DOC_NO = :docNo`,
+            { docNo }
+        );
+
+        if (draftRes.rows.length === 0) {
+            throw new Error("لم يتم العثور على بيانات المسودة");
         }
 
-        // تنفيذ التحويل على النسخة المحلية
+        const [senderEmp, recipientEmp, docDate, subject, mainDoc, mainDocNo, docType, transType, mainDate, mainDocDate] = draftRes.rows[0];
+
+        // تحضير نص المرفقات للجدول القديم (اختياري، للرجوع إليه)
+        const legacyAttachString = attachments && attachments.length > 0
+            ? attachments.map(a => a.path).join(',')
+            : null;
+
+        await connection.execute(
+            `UPDATE DOC_DATA_NEW SET FILE_NAME = :basePath, SECTORE = 1, FILE_ATTACH = :attachmentPath WHERE DOC_NO = :docNo`,
+            {
+                basePath,
+                docNo,
+                attachmentPath: legacyAttachString
+            },
+            { autoCommit: false }
+        );
+
+        // إدراج المرفقات في الجدول الجديد ATTACHMENTS
+        if (attachments && attachments.length > 0) {
+            for (const attach of attachments) {
+                await connection.execute(
+                    `INSERT INTO ATTACHMENTS (
+                        DOC_NO, DOC_DATE, MAIN_DOC_NO, MAIN_DOC_DATE, MAIN_DOC, 
+                        FILE_PATH, PLACE_C, MAIN_DATE, ATTACH_TYPE, FILE_DESC
+                    ) VALUES (
+                        :docNo, :docDate, :mainDocNo, :mainDocDate, :mainDoc, 
+                        :filePath, :placeC, :mainDate, 1, :fileDesc
+                    )`,
+                    {
+                        docNo,
+                        docDate,
+                        mainDocNo,
+                        mainDocDate,
+                        mainDoc,
+                        filePath: attach.path,
+                        placeC: senderEmp,
+                        mainDate: mainDate || docDate, 
+                        fileDesc: attach.desc || path.basename(attach.path)
+                    },
+                    { autoCommit: false }
+                );
+            }
+        }
+
+        // التحقق من قائمة المستلمين
+        let distributions = [];
+        if (recipients && recipients.length > 0) {
+            distributions = recipients;
+        } else {
+            distributions = [{ empNum: recipientEmp, situationId: situationId || 7 }];
+        }
+
+        // إرسال المكاتبة فعلياً لكل مستلم
+        for (const target of distributions) {
+            await connection.execute(`
+            INSERT INTO RECIP_GEHA_NEW (
+                DOC_NO, DOC_DATE, PLACE_C, GEHA_C, SITUATION,SECTOR_C, ANSERED, REPLAY_PATH, SEND_DATE, 
+                MAIN_DOC, MAIN_DOC_NO, SEEN_FLAG
+            ) VALUES (
+                :docNo, :docDate, :senderEmp, :recipient, :situationId,1, 0, :pdfPath, SYSDATE,
+                :mainDoc, :mainDocNo, 0
+            )
+        `, {
+                docNo,
+                docDate,
+                senderEmp,
+                recipient: target.empNum,
+                pdfPath: basePath,
+                situationId: parseInt(target.situationId) || 7,
+                mainDoc,
+                mainDocNo
+            }, { autoCommit: false });
+
+            // إرسال تنبيه للمستلم
+            await sendNotification({
+                senderId: senderEmp,
+                receiverId: target.empNum,
+                message: `وصلتك مذكرة جديدة بعنوان: ${subject}`,
+                docNo: docNo,
+                title: `مذكرة جديدة`
+            });
+        }
+
+        await connection.commit();
+
+        // 4. استراتيجية التحويل بعد الانتهاء من قواعد البيانات
+        // هنا قمنا بحذف الـ Powershell واستدعاء API التعديل مباشرة لحل مشكلة الأبعاد بشكل قاطع ومطابق تماماً
         try {
-            // محاولة إغلاق أي عمليات Word عالقة قبل البدء لضمان تحرير الملفات
-            await execPromise('taskkill /F /IM winword.exe').catch(() => { });
-            await new Promise(resolve => setTimeout(resolve, 1000)); // انتظر ثانية لضمان إغلاق العمليات بالكامل
+            const protocol = req.headers.get('x-forwarded-proto') || 'http';
+            const host = req.headers.get('host') || 'localhost:3000';
+            const baseUrl = `${protocol}://${host}`;
 
-            const psScript = `
-                $word = New-Object -ComObject Word.Application;
-                $word.Visible = $false;
-                $word.DisplayAlerts = 0; 
-                try {
-                    $doc = $word.Documents.Open('${tempDocPath}', $false, $true);
-                    
-                    # ضبط العرض على وضع الطباعة لضمان الحفاظ على التنسيقات والمسافات
-                    $word.ActiveWindow.View.Type = 3; 
-                    
-                    # تحديث أي حقول ديناميكية لو وجدت
-                    $doc.Fields.Update();
-
-                    # التصدير بتنسيق ثابت (أفضل من SaveAs للحفاظ على التنسيق)
-                    # OptimizeForPrint = 0, RangeAll = 0, ItemDocument = 0
-                    $doc.ExportAsFixedFormat(
-                        '${tempPdfPath}', 
-                        17, # wdExportFormatPDF
-                        $false, # OpenAfterExport
-                        0, # OptimizeForPrint
-                        0, # RangeAll
-                        1, 1, # From, To
-                        0, # ItemDocument
-                        $true, # IncludeDocProps
-                        $true, # KeepIRM
-                        1, # CreateBookmarks
-                        $true, # DocStructureTags
-                        $true, # BitmapMissingFonts
-                        $false # UseISO19005_1
-                    );
-
-                    $doc.Close(0);
-                } catch {
-                    Write-Error $_.Exception.Message
-                    exit 1
-                } finally {
-                    $word.Quit();
-                    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
-                    [GC]::Collect();
-                    [GC]::WaitForPendingFinalizers();
-                }
-            `;
-
-            const tempPsFile = path.join(tempDir, `script_${docNo}.ps1`);
-            fs.writeFileSync(tempPsFile, psScript, { encoding: 'utf8' });
-
-            await execPromise(`powershell -ExecutionPolicy Bypass -File "${tempPsFile}"`);
-
-            // تنظيف السكريبت
-            if (fs.existsSync(tempPsFile)) fs.unlinkSync(tempPsFile);
-
-            // التحقق من إنشاء الـ PDF
-            if (!fs.existsSync(tempPdfPath)) {
-                throw new Error("فشل توليد ملف PDF (لم يتم العثور على الملف الناتج)");
-            }
-
-            // نقل الـ PDF الناتج إلى المسار النهائي على الشبكة (مع تكرار المحاولة في حالة القفل EBUSY)
-            let copied = false;
-            let attempts = 0;
-            while (!copied && attempts < 3) {
-                try {
-                    fs.copyFileSync(tempPdfPath, pdfPathOnDisk);
-                    copied = true;
-                } catch (copyErr) {
-                    attempts++;
-                    if (copyErr.code === 'EBUSY' && attempts < 3) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    } else {
-                        throw copyErr;
-                    }
-                }
-            }
-
-            // تنظيف الملفات المؤقتة
-            if (fs.existsSync(tempDocPath)) fs.unlinkSync(tempDocPath);
-            if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
-
-            // 4. تحديث قاعدة البيانات
-            connection = await getConnection2();
-
-            // جلب بيانات المسودة لإكمال الإرسال
-            const draftRes = await connection.execute(
-                `SELECT PLACE_C, EMP_NO, DOC_DATE, SUBJECT, MAIN_DOC, MAIN_DOC_NO, DOC_TYPE, 
-                        NVL(TRANS_TYPE, 2) as TRANS_TYPE, MAIN_DATE, MAIN_DOC_DATE 
-                 FROM DOC_DATA_NEW 
-                 WHERE DOC_NO = :docNo`,
-                { docNo }
-            );
-
-            if (draftRes.rows.length === 0) {
-                throw new Error("لم يتم العثور على بيانات المسودة");
-            }
-
-            const [senderEmp, recipientEmp, docDate, subject, mainDoc, mainDocNo, docType, transType, mainDate, mainDocDate] = draftRes.rows[0];
-
-            // تحضير نص المرفقات للجدول القديم (اختياري، للرجوع إليه)
-            const legacyAttachString = attachments && attachments.length > 0
-                ? attachments.map(a => a.path).join(',')
-                : null;
-
-            await connection.execute(
-                `UPDATE DOC_DATA_NEW SET FILE_NAME = :basePath, SECTORE = 1, FILE_ATTACH = :attachmentPath WHERE DOC_NO = :docNo`,
-                {
-                    basePath,
-                    docNo,
-                    attachmentPath: legacyAttachString
+            const updatePdfRes = await fetch(`${baseUrl}/api/memo/update-pdf`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Cookie: req.headers.get("cookie")
                 },
-                { autoCommit: false }
-            );
+                body: JSON.stringify({ docNo, skipNotifications: true })
+            });
 
-            // 5. إدراج المرفقات في الجدول الجديد ATTACHMENTS
-            if (attachments && attachments.length > 0) {
-                for (const attach of attachments) {
-                    await connection.execute(
-                        `INSERT INTO ATTACHMENTS (
-                            DOC_NO, DOC_DATE, MAIN_DOC_NO, MAIN_DOC_DATE, MAIN_DOC, 
-                            FILE_PATH, PLACE_C, MAIN_DATE, ATTACH_TYPE, FILE_DESC
-                        ) VALUES (
-                            :docNo, :docDate, :mainDocNo, :mainDocDate, :mainDoc, 
-                            :filePath, :placeC, :mainDate, 1, :fileDesc
-                        )`,
-                        {
-                            docNo,
-                            docDate,
-                            mainDocNo,
-                            mainDocDate,
-                            mainDoc,
-                            filePath: attach.path,
-                            placeC: senderEmp,
-                            mainDate: mainDate || docDate, // استخدام التاريخ الرئيسي أو تاريخ المستند
-                            fileDesc: attach.desc || path.basename(attach.path)
-                        },
-                        { autoCommit: false }
-                    );
-                }
+            if (!updatePdfRes.ok) {
+                const resJson = await updatePdfRes.json().catch(() => ({}));
+                throw new Error(resJson.error || "فشل نداء API التعديل");
             }
-
-            // التحقق من قائمة المستلمين
-            let distributions = [];
-            if (recipients && recipients.length > 0) {
-                distributions = recipients;
-            } else {
-                distributions = [{ empNum: recipientEmp, situationId: situationId || 7 }];
-            }
-
-            // إرسال المكاتبة فعلياً لكل مستلم
-            for (const target of distributions) {
-                await connection.execute(`
-                INSERT INTO RECIP_GEHA_NEW (
-                    DOC_NO, DOC_DATE, PLACE_C, GEHA_C, SITUATION,SECTOR_C, ANSERED, REPLAY_PATH, SEND_DATE, 
-                    MAIN_DOC, MAIN_DOC_NO, SEEN_FLAG
-                ) VALUES (
-                    :docNo, SYSDATE, :senderEmp, :recipient, :situationId,1, 0, :pdfPath, SYSDATE,
-                    :mainDoc, :mainDocNo, 0
-                )
-            `, {
-                    docNo,
-                    senderEmp,
-                    recipient: target.empNum,
-                    pdfPath: basePath,
-                    situationId: parseInt(target.situationId) || 7,
-                    mainDoc,
-                    mainDocNo
-                }, { autoCommit: false });
-
-                // إرسال تنبيه للمستلم (Web + Desktop)
-                await sendNotification({
-                    senderId: senderEmp,
-                    receiverId: target.empNum,
-                    message: `وصلتك مذكرة جديدة بعنوان: ${subject}`,
-                    docNo: docNo,
-                    title: `مذكرة جديدة`
-                });
-            }
-
-            await connection.commit();
-
+            
             return NextResponse.json({ success: true, pdfPath: basePath });
 
         } catch (convErr) {
-            console.error("Conversion Error:", convErr);
-            return NextResponse.json({ success: false, error: "فشل تحويل الوورد إلى PDF: " + (convErr.stderr || convErr.message || convErr) }, { status: 500 });
+            console.error("Conversion via Update API Error:", convErr);
+            // نعيد نجاح مع إشعار بالخطأ في التحويل، لأن الداتابيز اكتملت
+            return NextResponse.json({ success: true, pdfPath: basePath, warning: "تم الإرسال ولكن الرجاء تحديث PDF لاحقاً: " + (convErr.message || "خطأ غير معروف") });
         }
 
     } catch (err) {

@@ -20,7 +20,7 @@ export async function POST(req) {
                 );
             } else {
                 await connection.execute(
-                    `UPDATE SYSTEM_NOTIFICATIONS SET READ_FLAG = 1 WHERE ID = :notifId`,
+                    `UPDATE SYSTEM_NOTIFICATIONS SET READ_FLAG = 1 WHERE ROWID = :notifId`,
                     { notifId },
                     { autoCommit: true }
                 );
@@ -37,7 +37,7 @@ export async function POST(req) {
                 );
             } else {
                 await connection.execute(
-                    `UPDATE SYSTEM_NOTIFICATIONS SET READ_FLAG = 1 WHERE ID = :notifId`,
+                    `UPDATE SYSTEM_NOTIFICATIONS SET READ_FLAG = 1 WHERE ROWID = :notifId`,
                     { notifId },
                     { autoCommit: true }
                 );

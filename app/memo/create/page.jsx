@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,10 @@ export default function CreateMemoPage() {
     const [toDate, setToDate] = useState("");
     const [favorites, setFavorites] = useState([]);
     const [kindFavorites, setKindFavorites] = useState([]);
+    const [isPolling, setIsPolling] = useState(false);
+    const [archiveStatus, setArchiveStatus] = useState(null); // null | 'waiting' | 'archiving' | 'done'
+    const pollingRef = useRef(null);
+    const archiveDataRef = useRef(null); // store archive params for when save detected
 
     useEffect(() => {
         const init = async () => {
@@ -316,6 +320,83 @@ export default function CreateMemoPage() {
         }
     };
 
+    // دالة المراقبة الآلية - تراقب الحفظ في Word وتطلق archive تلقائياً
+    const startArchivePolling = async () => {
+        if (pollingRef.current) return; // لا تبدأ مراقبة مكررة
+
+        // نحصل على وقت آخر تعديل للملف أولاً كنقطة مرجعية
+        const currentDocNo = docNo;
+        let initialWordMtime = 0;
+        try {
+            const checkRes = await fetch(`/api/memo/update-pdf/check?docNo=${currentDocNo}`);
+            const checkJson = await checkRes.json();
+            if (checkJson.success) {
+                initialWordMtime = checkJson.wordMtime || 0;
+            }
+        } catch (e) {
+            console.error("Failed to get initial mtime:", e);
+        }
+
+        setIsPolling(true);
+        pollingRef.current = setInterval(async () => {
+            try {
+                const checkRes = await fetch(`/api/memo/update-pdf/check?docNo=${currentDocNo}`);
+                const checkJson = await checkRes.json();
+
+                if (checkJson.success && checkJson.wordMtime > initialWordMtime) {
+                    // تم اكتشاف حفظ في Word!
+                    clearInterval(pollingRef.current);
+                    pollingRef.current = null;
+                    setIsPolling(false);
+                    setArchiveStatus('archiving');
+
+                    // جلب بيانات الأرشيف المحفوظة
+                    const archiveData = archiveDataRef.current;
+                    if (!archiveData) {
+                        setArchiveStatus(null);
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch("/api/memo/archive", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(archiveData)
+                        });
+                        const json = await res.json();
+                        if (json.success) {
+                            setArchiveStatus('done');
+                            toast.success("✅ تم الإرسال بنجاح! الـ PDF مطابق للـ Word تماماً");
+                            if (json.pdfPath) {
+                                setTimeout(() => handleOpenFile(json.pdfPath, archiveData.docNo), 500);
+                            }
+                            setTimeout(() => router.push("/export"), 1200);
+                        } else {
+                            setArchiveStatus(null);
+                            toast.error(json.error || "فشل الإرسال");
+                        }
+                    } catch (err) {
+                        console.error("Archive after polling error:", err);
+                        setArchiveStatus(null);
+                        toast.error(err.message || "حدث خطأ أثناء الإرسال");
+                    }
+                }
+            } catch (e) {
+                console.error("Polling error:", e);
+            }
+        }, 3000); // فحص كل 3 ثواني
+    };
+
+    // تنظيف الـ polling عند مغادرة الصفحة
+    useEffect(() => {
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+        };
+    }, []);
+
     const filteredEmps = employees.filter(emp => {
         const matchesSearch = emp.EMP_NAME.includes(searchTerm) || emp.EMP_NUM.toString().includes(searchTerm);
         const isNotSelf = user ? String(emp.EMP_NUM) !== String(user.empNum) : true;
@@ -499,6 +580,7 @@ export default function CreateMemoPage() {
                                     </div>
 
                                     <div className="flex flex-col lg:flex-row items-center justify-center gap-4 pt-6">
+                                        {/* زر فتح وتعديل */}
                                         <Button
                                             onClick={() => handleOpenFile(savedPath)}
                                             className="h-16 px-10 rounded-3xl bg-amber-500 hover:bg-amber-600 text-white font-black text-lg shadow-xl shadow-amber-200 group flex items-center gap-3 w-full lg:w-auto"
@@ -507,9 +589,9 @@ export default function CreateMemoPage() {
                                             1. فتح وتعديل المذكرة (Word)
                                         </Button>
 
+                                        {/* زر الاعتماد والإرسال - إرسال مباشر */}
                                         <Button
                                             onClick={async () => {
-
                                                 const allHaveSituations = selectedEmps.every(e => e.customSituation);
                                                 if (!allHaveSituations && !selectedSituation) {
                                                     toast.error("برجاء اختيار 'المطلوب' لكل مستلم قبل الإرسال");
@@ -517,10 +599,14 @@ export default function CreateMemoPage() {
                                                 }
 
                                                 setIsArchiving(true);
+                                                
+                                                // 🔴 1. فتح تبويب فارغ فوراً لتجنب حظر النوافذ المنبثقة من المتصفح
+                                                const pdfWindow = window.open('about:blank', '_blank');
+
                                                 try {
                                                     let attachmentPath = null;
 
-                                                    // 1. Upload Attachments if exists
+                                                    // 1. رفع المرفقات إن وُجدت
                                                     if (attachments && attachments.length > 0) {
                                                         const formData = new FormData();
                                                         formData.append("docNo", docNo);
@@ -528,7 +614,6 @@ export default function CreateMemoPage() {
                                                             formData.append("files", item.file);
                                                             formData.append("descriptions", item.desc || item.file.name);
                                                         });
-
                                                         const uploadRes = await fetch("/api/memo/upload", {
                                                             method: "POST",
                                                             body: formData
@@ -538,14 +623,14 @@ export default function CreateMemoPage() {
                                                         attachmentPath = uploadJson.attachments;
                                                     }
 
-                                                    // 2. Archive and Send
+                                                    // 2. الإرسال المباشر
                                                     const res = await fetch("/api/memo/archive", {
                                                         method: "POST",
                                                         headers: { "Content-Type": "application/json" },
                                                         body: JSON.stringify({
                                                             docNo,
                                                             path: savedPath,
-                                                            attachments: attachmentPath, // Send the full objects
+                                                            attachments: attachmentPath,
                                                             recipients: selectedEmps.map(e => ({
                                                                 empNum: e.EMP_NUM,
                                                                 situationId: e.customSituation || selectedSituation
@@ -554,18 +639,23 @@ export default function CreateMemoPage() {
                                                     });
                                                     const json = await res.json();
                                                     if (json.success) {
-                                                        toast.success("تم إرسال المكاتبة والمرفقات بنجاح");
-                                                        // فتح الـ PDF المحول فوراً في عارض الـ PDF
-                                                        if (json.pdfPath) {
-                                                            handleOpenFile(json.pdfPath, docNo);
+                                                        toast.success("✅ تم الإرسال بنجاح!");
+                                                        
+                                                        // توجيه التبويب لعارض الـ PDF
+                                                        if (json.pdfPath && pdfWindow) {
+                                                            pdfWindow.location.href = `/pdf-viewer?file=${encodeURIComponent(json.pdfPath)}&docNo=${docNo}`;
+                                                        } else if (pdfWindow) {
+                                                            pdfWindow.close();
                                                         }
-                                                        setTimeout(() => {
-                                                            router.push("/export");
-                                                        }, 800);
+
+                                                        // توجيه الصفحة الأصلية للصادر
+                                                        setTimeout(() => router.push("/export"), 800);
                                                     } else {
-                                                        toast.error(json.error || "فشل تحويل الملف");
+                                                        if (pdfWindow) pdfWindow.close();
+                                                        toast.error(json.error || "فشل الإرسال");
                                                     }
                                                 } catch (err) {
+                                                    if (pdfWindow) pdfWindow.close();
                                                     console.error(err);
                                                     toast.error(err.message || "حدث خطأ أثناء الاتصال بالسيرفر");
                                                 } finally {
@@ -573,13 +663,12 @@ export default function CreateMemoPage() {
                                                 }
                                             }}
                                             disabled={isArchiving}
-                                            className="h-16 px-10 rounded-3xl bg-green-600 hover:bg-green-700 text-white font-black text-lg shadow-xl shadow-green-200 group flex items-center gap-3 animate-pulse hover:animate-none w-full lg:w-auto"
+                                            className="h-16 px-10 rounded-3xl bg-green-600 hover:bg-green-700 text-white font-black text-lg shadow-xl shadow-green-200 group flex items-center gap-3 w-full lg:w-auto animate-pulse hover:animate-none"
                                         >
-                                            {isArchiving ? <Loader2 className="w-6 h-6 animate-spin" /> : (
-                                                <>
-                                                    <Send className="w-6 h-6" />
-                                                    2. اعتماد وإرسال (PDF)
-                                                </>
+                                            {isArchiving ? (
+                                                <><Loader2 className="w-6 h-6 animate-spin" /> جاري الإرسال...</>
+                                            ) : (
+                                                <><Send className="w-6 h-6" /> 2. اعتماد وإرسال</>
                                             )}
                                         </Button>
 

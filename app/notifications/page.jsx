@@ -75,7 +75,12 @@ export default function NotificationsPage() {
             const res = await fetch("/api/notifications");
             const json = await res.json();
             if (json.success) {
-                setNotifications(json.data);
+                // ترتيب الرسائل من الأحدث إلى الأقدم بناءً على الوقت
+                const sortedData = [...json.data].sort((a, b) => {
+                    return new Date(b.TIME_STR) - new Date(a.TIME_STR);
+                });
+                setNotifications(sortedData);
+                
                 if (json.data.some(n => n.READ_FLAG === 0)) {
                     await fetch("/api/notifications/read", {
                         method: "POST",
@@ -170,15 +175,21 @@ export default function NotificationsPage() {
     };
 
     const handleOpenFile = async (path, docNo, docDate) => {
-        if (!path) {
-            toast.error("مسار الملف غير متوفر");
+        if (!path && !docNo) {
+            toast.error("بيانات المكاتبة غير متوفرة");
             return;
         }
 
-        // تنظيف وتحضير المسار
-        let finalPath = path.trim().replace(/\//g, "\\");
+        // 1. التوجه مباشرة لصفحة الوارد مع البحث عن رقم المكاتبة (بشكل دقيق)
+        if (docNo) {
+            let url = `/import?search=${docNo}&isExact=true`;
+            if (docDate) url += `&date=${docDate}`;
+            router.push(url);
+            return;
+        }
 
-        // إذا كان المسار يبدأ بـ IP أو اسم سيرفر بدون \\، نقوم بإضافتها
+        // 2. إذا لم يكن هناك رقم مكاتبة (حالة نادرة)، نفتح الملف مباشرة
+        let finalPath = path.trim().replace(/\//g, "\\");
         if (finalPath.match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/) || (finalPath.split('\\')[0].includes('-') && !finalPath.startsWith("\\"))) {
             finalPath = "\\\\" + finalPath;
         } else if (finalPath.startsWith("\\") && !finalPath.startsWith("\\\\")) {
@@ -186,36 +197,23 @@ export default function NotificationsPage() {
         }
 
         const lowerPath = finalPath.toLowerCase();
-
-        // التحقق من الامتدادات
         const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp"];
         const docExtensions = [".pdf", ".docx", ".docm", ".xlsx", ".xls", ".doc"];
-
         let isPdf = lowerPath.endsWith(".pdf");
         const isImage = imageExtensions.some(ext => lowerPath.endsWith(ext));
         const hasExtension = docExtensions.some(ext => lowerPath.endsWith(ext)) || isImage;
 
-        // ملاحظة: لو مفيش امتداد، هنعتبره PDF (لأن دي أغلب الحالات في الداتابيز)
-        if (!hasExtension) {
+        if (!hasExtension && !lowerPath.endsWith(".pdf")) {
             isPdf = true;
-            if (!finalPath.toLowerCase().endsWith(".pdf")) {
-                finalPath += ".pdf";
-            }
+            finalPath += ".pdf";
         }
 
-        // 1. إذا كان الملف PDF أو صورة، نفضل فتحه في العارض الذكي (PDF Viewer)
         if (isPdf || isImage) {
             window.open(`/pdf-viewer?file=${encodeURIComponent(finalPath)}`, '_blank');
-            if (docNo) {
-                let url = `/import?search=${docNo}`;
-                if (docDate) url += `&date=${docDate}`;
-                router.push(url);
-            }
             return;
         }
 
-        // 2. إذا كان ملف ورد أو نوع آخر، نستخدم النظام الهجين (Local API + Fallback)
-        console.log("📂 Requesting server to open:", finalPath);
+        // استخدام النظام الهجين للملفات الأخرى
         try {
             const res = await fetch("/api/memo/open-local", {
                 method: "POST",
@@ -223,22 +221,13 @@ export default function NotificationsPage() {
                 body: JSON.stringify({ path: finalPath })
             });
             const json = await res.json();
-
-            if (json.success) {
-                if (json.isRemote) {
-                    window.location.href = `aoi-open:${finalPath}`;
-                } else {
-                    toast.success("تم فتح الملف بنجاح");
-                }
-            } else {
+            if (!json.success || json.isRemote) {
                 window.location.href = `aoi-open:${finalPath}`;
+            } else {
+                toast.success("تم فتح الملف بنجاح");
             }
-        } finally {
-            if (docNo) {
-                let url = `/import?search=${docNo}`;
-                if (docDate) url += `&date=${docDate}`;
-                router.push(url);
-            }
+        } catch {
+            window.location.href = `aoi-open:${finalPath}`;
         }
     };
 

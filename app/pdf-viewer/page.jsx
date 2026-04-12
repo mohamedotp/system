@@ -208,6 +208,18 @@ function PDFViewerContent() {
             const json = await res.json();
 
             if (json.success) {
+                // التأشير كتم الرد للأشخاص المحددين في RESTRICTED_VIEW_USERS
+                if (user && ["1714", "1716", "1712"].includes(user.empNum?.toString())) {
+                    try {
+                        await fetch("/api/import/updateAnswered", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ docNo }),
+                        });
+                    } catch (err) {
+                        console.error("Error auto-marking as answered:", err);
+                    }
+                }
                 toast.success("تم تثبيت التوقيع بنجاح");
                 setIsDragMode(false);
                 setPdfUrl(null);
@@ -368,6 +380,18 @@ function PDFViewerContent() {
 
             const json = await res.json();
             if (json.success) {
+                // التأشير كتم الرد للأشخاص المحددين في RESTRICTED_VIEW_USERS
+                if (user && ["1714", "1716", "1712"].includes(user.empNum?.toString())) {
+                    try {
+                        await fetch("/api/import/updateAnswered", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ docNo }),
+                        });
+                    } catch (err) {
+                        console.error("Error auto-marking as answered:", err);
+                    }
+                }
                 toast.success("تم حفظ النصوص بنجاح");
                 setTextItems([]);
                 setIsTextMode(false);

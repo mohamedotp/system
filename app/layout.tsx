@@ -33,7 +33,7 @@ export default function RootLayout({
       >
         <Navbar />
         {children}
-        <MemoStatsNotification />
+        {/* <MemoStatsNotification /> */}
         <Toaster position="bottom-center" richColors />
         <Footer />
       </body>

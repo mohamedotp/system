@@ -15,6 +15,7 @@ export async function GET(req) {
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
     const search = searchParams.get("search");
+    const isExact = searchParams.get("isExact") === "true"; // هل البحث دقيق؟
     const docCategory = searchParams.get("docCategory");
     const status = searchParams.get("status");
     const allPending = searchParams.get("allPending") === "true";
@@ -43,6 +44,7 @@ export async function GET(req) {
                    d.FILE_ATTACH,
                    d.DOC_TYPE,
                    d.FLAG,
+                   NVL(d.DOC_STATUS, 0) as DOC_STATUS,
                    NVL(d.MAIN_DOC, d.DOC_NO) as NODE_ID,
                    
                    /* 1. الزملاء المستلمين الحاليين (اللي وصلت لهم نفس المكاتبة معايا) */
@@ -96,35 +98,43 @@ export async function GET(req) {
             empNum
         };
 
-        // ✅ فلترة التاريخ:
-        if (allPending) {
-            // لو مختار "كل الجاري"، نجيب كل اللي مش "تم الرد" بغض النظر عن التاريخ
-            query += ` AND (r.ANSERED = 0 OR r.ANSERED IS NULL OR r.ANSERED <> 1)`;
-        } else {
-            if (fromDate && toDate) {
-                query += `
-                    AND TRUNC(r.DOC_DATE)
-                    BETWEEN TO_DATE(:fromDate, 'YYYY-MM-DD')
-                    AND TO_DATE(:toDate, 'YYYY-MM-DD')
-                `;
-                binds.fromDate = fromDate;
-                binds.toDate = toDate;
-            } else if (!search) {
-                // لو مفيش بحث ولا تواريخ، ديفولت اليوم
-                query += ` AND TRUNC(r.DOC_DATE) = TRUNC(SYSDATE)`;
+        // ✅ فلترة التاريخ: (يتم تجاهلها في حال البحث الدقيق برقم المكاتبة)
+        if (!isExact) {
+            if (allPending) {
+                // لو مختار "كل الجاري"، نجيب كل اللي مش "تم الرد" بغض النظر عن التاريخ
+                query += ` AND (r.ANSERED = 0 OR r.ANSERED IS NULL OR r.ANSERED <> 1)`;
+            } else {
+                if (fromDate && toDate) {
+                    query += `
+                        AND TRUNC(r.DOC_DATE)
+                        BETWEEN TO_DATE(:fromDate, 'YYYY-MM-DD')
+                        AND TO_DATE(:toDate, 'YYYY-MM-DD')
+                    `;
+                    binds.fromDate = fromDate;
+                    binds.toDate = toDate;
+                } else if (!search && status !== 'pending') {
+                    // لو مفيش بحث ولا تواريخ، ديفولت اليوم باستثناء المكاتبات غير المردود عليها
+                    query += ` AND TRUNC(r.DOC_DATE) = TRUNC(SYSDATE)`;
+                }
             }
         }
 
         if (search) {
-            query += `
-                AND (
-                    UPPER(d.SUBJECT) LIKE UPPER(:search)
-                    OR r.DOC_NO LIKE :search
-                    OR UPPER(r.DOC_NO) LIKE UPPER(:search)
-                    OR UPPER(ep.EMP_NAME) LIKE UPPER(:search)
-                )
-            `;
-            binds.search = `%${search}%`;
+            if (isExact) {
+                // بحث دقيق برقم المكاتبة فقط
+                query += ` AND TRIM(r.DOC_NO) = :search`;
+                binds.search = search;
+            } else {
+                query += `
+                    AND (
+                        UPPER(d.SUBJECT) LIKE UPPER(:search)
+                        OR r.DOC_NO LIKE :search
+                        OR UPPER(r.DOC_NO) LIKE UPPER(:search)
+                        OR UPPER(ep.EMP_NAME) LIKE UPPER(:search)
+                    )
+                `;
+                binds.search = `%${search}%`;
+            }
         }
 
         if (docCategory === "incoming") {

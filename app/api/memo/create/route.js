@@ -14,14 +14,15 @@ export async function POST(req) {
     try {
         const { docType, subject, recipientEmpNums, parentDocNo, transType, vacationEmpNo, fromDate, toDate } = await req.json();
 
-        if (!subject || !recipientEmpNums || recipientEmpNums.length === 0) {
-            return NextResponse.json({ success: false, error: "بيانات ناقصة (الموضوع أو المستلم)" }, { status: 400 });
+        if (!subject) {
+            return NextResponse.json({ success: false, error: "الموضوع المكاتبة مطلوب" }, { status: 400 });
         }
 
-        const recipientEmpNum = recipientEmpNums[0];
         const currentEmpNum = session.empNum;
         connection = await getConnection2();
 
+        // Use the first recipient if provided, else use current user for draft
+        const recipientEmpNum = (recipientEmpNums && recipientEmpNums.length > 0) ? recipientEmpNums[0] : currentEmpNum;
         const finalEmpNo = vacationEmpNo ? parseInt(vacationEmpNo) : recipientEmpNum;
         const finalFromDate = fromDate ? new Date(fromDate) : null;
         const finalToDate = toDate ? new Date(toDate) : null;
@@ -126,38 +127,48 @@ export async function POST(req) {
                     const tempDir = os.tmpdir();
                     const pdfInitPath = destinationPath.replace(/\.(docm|docx)$/i, ".pdf");
 
-                    const psInitScript = `
-                        $word = New-Object -ComObject Word.Application;
-                        $word.Visible = $false;
-                        $word.DisplayAlerts = 0; 
-                        $word.ScreenUpdating = $false;
-                        try {
-                            # --- فتح الملف كقراءة فقط لضمان عدم تغيير إعداداته أو تنسيقه ---
-                            $doc = $word.Documents.Open('${destinationPath}', $false, $true);
+                    const escapedDestPath = destinationPath.replace(/'/g, "''");
+                    const escapedPdfPath = pdfInitPath.replace(/'/g, "''");
 
-                            Start-Sleep -Seconds 1;
-                            $doc.Fields.Update();
-                            $doc.Repaginate();
-
-                            # --- تصدير الـ PDF من النسخة الحالية بدون حفظ أي شيء للوورد ---
-                            $doc.SaveAs([ref]'${pdfInitPath}', [ref]17);
-                            $doc.Close(0); # 0 = wdDoNotSaveChanges
-
-                        } catch {
-                            Write-Error $_.Exception.Message
-                            exit 1
-                        } finally {
-                            $word.Quit();
-                            [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
-                            [GC]::Collect();
-                            [GC]::WaitForPendingFinalizers();
-                        }
-                    `;
+                    const psInitScript = [
+                        `$word = New-Object -ComObject Word.Application`,
+                        `$word.Visible = $false`,
+                        `$word.DisplayAlerts = 0`,
+                        `$word.ScreenUpdating = $false`,
+                        `try {`,
+                        `    $doc = $word.Documents.Open('${escapedDestPath}', $false, $true)`,
+                        `    Start-Sleep -Seconds 1`,
+                        `    $doc.Fields.Update()`,
+                        `    $doc.Repaginate()`,
+                        `    $doc.SaveAs([ref]'${escapedPdfPath}', [ref]17)`,
+                        `    $doc.Close(0)`,
+                        `} catch {`,
+                        `    Write-Error $_.Exception.Message`,
+                        `    exit 1`,
+                        `} finally {`,
+                        `    $word.Quit()`,
+                        `    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null`,
+                        `    [GC]::Collect()`,
+                        `    [GC]::WaitForPendingFinalizers()`,
+                        `}`
+                    ].join("\n");
 
                     const tempPsFile = path.join(tempDir, `init_${Date.now()}.ps1`);
                     fs.writeFileSync(tempPsFile, psInitScript, { encoding: 'utf8' });
-                    await execPromise(`powershell -ExecutionPolicy Bypass -File "${tempPsFile}"`);
-                    if (fs.existsSync(tempPsFile)) fs.unlinkSync(tempPsFile);
+                    
+                    // ✅ استخدام execFile بدل exec لمنع shell injection
+                    await new Promise((resolve, reject) => {
+                        const { execFile: execFileFn } = require('child_process');
+                        execFileFn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', tempPsFile], (err) => {
+                            if (fs.existsSync(tempPsFile)) fs.unlinkSync(tempPsFile);
+                            if (err) {
+                                console.error("PowerShell Init Error:", err);
+                                reject(err);
+                            } else {
+                                resolve();
+                            }
+                        });
+                    });
 
                     console.log(`✅ Server initialized formatting for ${destinationPath}`);
 

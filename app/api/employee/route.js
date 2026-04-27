@@ -33,6 +33,7 @@ export async function GET(req) {
         SELECT NVL(SUM(d1.ded_val),0)
         FROM deddata d1
         WHERE d1.last_flag = 1
+        AND d1.ded_cod between 139 and 149
           AND d1.d_emp_num = m.emp_num
     ) AS club_subscription,
 

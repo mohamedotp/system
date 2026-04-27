@@ -14,7 +14,7 @@ async function check() {
         });
 
         const result = await conn.execute(`
-            SELECT text 
+            view_name, text 
             FROM all_views 
             WHERE view_name = 'RECIP' 
             AND owner = 'DOC'

@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\aoi-open]
+@="URL:aoi-open Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\aoi-open\shell\open\command]
+@="powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"\\\\192.168.13.12\\Multimedia\\mohamed\\aoi_open.ps1\" \"%1\""

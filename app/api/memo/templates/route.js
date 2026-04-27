@@ -70,12 +70,22 @@ export async function POST(req) {
     try {
         const formData = await req.formData();
         const nameAr = formData.get("nameAr");
-        const nameEn = formData.get("nameEn");
+        const nameEnRaw = formData.get("nameEn");
         const sourceFile = formData.get("sourceFile");
         const uploadedFile = formData.get("file");
 
-        if (!nameAr || !nameEn) {
+        if (!nameAr || !nameEnRaw) {
             return NextResponse.json({ success: false, error: "يجب إدخال الاسم بالعربي والإنجليزي" }, { status: 400 });
+        }
+
+        // ✅ تنظيف nameEn: نمنع أي حرف خطر يمكن استخدامه لـ injection أو path traversal
+        const nameEn = nameEnRaw.trim()
+            .replace(/[^a-zA-Z0-9_\-\u0600-\u06FF ]/g, "") // فقط حروف وأرقام وعربي وشرطة
+            .replace(/\.\.+/g, "")                          // منع ..
+            .trim();
+
+        if (!nameEn) {
+            return NextResponse.json({ success: false, error: "الاسم الإنجليزي يحتوي على أحرف غير مسموح بها" }, { status: 400 });
         }
 
         connection = await getConnection2();
@@ -109,10 +119,22 @@ export async function POST(req) {
 
         } else if (sourceFile && sourceFile !== "BLANK" && sourceFile !== "UPLOAD") {
             // نسخ من قالب موجود
-            const sourcePath = path.join(TEMPLATE_DIR, sourceFile);
-            const ext = path.extname(sourceFile) || ".docx";
+            // ✅ نستخدم basename فقط لمنع traversal مثل: ../../Windows/System32/cmd.exe
+            const safeSourceFile = path.basename(sourceFile);
+            const sourcePath = path.join(TEMPLATE_DIR, safeSourceFile);
+
+            // ✅ التأكد أن المصدر داخل TEMPLATE_DIR فقط
+            if (!path.resolve(sourcePath).startsWith(path.resolve(TEMPLATE_DIR))) {
+                return NextResponse.json({ success: false, error: "مسار القالب المصدر غير مسموح به" }, { status: 403 });
+            }
+
+            const ext = path.extname(safeSourceFile) || ".docx";
+            if (!/^\.(docx|docm|doc)$/i.test(ext)) {
+                return NextResponse.json({ success: false, error: "نوع القالب المصدر غير مسموح" }, { status: 400 });
+            }
+
             finalTargetPath = path.join(TEMPLATE_DIR, `${nameEn}${ext}`);
-            
+
             if (fs.existsSync(sourcePath)) {
                 let copied = false;
                 let attempts = 0;
@@ -134,31 +156,47 @@ export async function POST(req) {
             }
 
         } else if (sourceFile === "BLANK") {
-           
+
             finalTargetPath = path.join(TEMPLATE_DIR, `${nameEn}.docx`);
-            const psScript = `
-                $word = New-Object -ComObject Word.Application;
-                $word.Visible = $false;
-                $word.DisplayAlerts = 0;
-                try {
-                    $doc = $word.Documents.Add();
-                    # wdFormatXMLDocument = 12 (.docx)
-                    $doc.SaveAs([ref]'${finalTargetPath}', [ref]12);
-                    $doc.Close(0);
-                } catch {
-                    Write-Error $_.Exception.Message
-                    exit 1
-                } finally {
-                    $word.Quit();
-                    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
-                    [GC]::Collect();
-                    [GC]::WaitForPendingFinalizers();
-                }
-            `;
+
+            // ✅ التأكد أن المسار النهائي داخل TEMPLATE_DIR فقط
+            if (!path.resolve(finalTargetPath).startsWith(path.resolve(TEMPLATE_DIR))) {
+                return NextResponse.json({ success: false, error: "مسار غير مسموح به" }, { status: 403 });
+            }
+
+            // ✅ كتابة المسار في ملف PS1 مؤقت بدل تضمينه في الأمر مباشرة
+            // هذا يمنع PowerShell injection لأن finalTargetPath لا يظهر كـ command
+            const escapedPath = finalTargetPath.replace(/'/g, "''"); // escape single quotes لـ PS
+            const psScript = [
+                `$targetPath = '${escapedPath}'`,
+                `$word = New-Object -ComObject Word.Application`,
+                `$word.Visible = $false`,
+                `$word.DisplayAlerts = 0`,
+                `try {`,
+                `    $doc = $word.Documents.Add()`,
+                `    $doc.SaveAs([ref]$targetPath, [ref]12)`,
+                `    $doc.Close(0)`,
+                `} catch {`,
+                `    Write-Error $_.Exception.Message`,
+                `    exit 1`,
+                `} finally {`,
+                `    $word.Quit()`,
+                `    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null`,
+                `    [GC]::Collect()`,
+                `    [GC]::WaitForPendingFinalizers()`,
+                `}`
+            ].join("\n");
+
             const tempPs = path.join(os.tmpdir(), `create_blank_${Date.now()}.ps1`);
             fs.writeFileSync(tempPs, psScript, { encoding: 'utf8' });
-            await execPromise(`powershell -ExecutionPolicy Bypass -File "${tempPs}"`);
-            if (fs.existsSync(tempPs)) fs.unlinkSync(tempPs);
+            // ✅ execFile بدل execPromise لمنع shell injection في اسم الملف المؤقت
+            await new Promise((resolve, reject) => {
+                const { execFile: execFileFn } = require("child_process");
+                execFileFn("powershell.exe", ["-ExecutionPolicy", "Bypass", "-File", tempPs], (err) => {
+                    if (fs.existsSync(tempPs)) fs.unlinkSync(tempPs);
+                    err ? reject(err) : resolve();
+                });
+            });
 
             if (!fs.existsSync(finalTargetPath)) {
                 return NextResponse.json({
@@ -210,9 +248,11 @@ export async function DELETE(req) {
             { autoCommit: true }
         );
 
-        // Delete from Disk
+        // ✅ Delete from Disk - تأمين ضد path traversal
         const extensions = [".docm", ".docx", ".doc"];
-        let baseName = fileName;
+        
+        // path.basename يضمن أننا نأخذ اسم الملف فقط بدون أي مسار
+        let baseName = path.basename(fileName);
         extensions.forEach(ext => {
             if (baseName.toLowerCase().endsWith(ext)) {
                 baseName = baseName.slice(0, -ext.length);
@@ -221,6 +261,11 @@ export async function DELETE(req) {
 
         extensions.forEach(ext => {
             const filePath = path.join(TEMPLATE_DIR, `${baseName}${ext}`);
+            // ✅ التأكد من أن المسار داخل TEMPLATE_DIR فقط قبل الحذف
+            if (!path.resolve(filePath).startsWith(path.resolve(TEMPLATE_DIR))) {
+                console.warn(`⚠️ Security: Blocked delete outside TEMPLATE_DIR: ${filePath}`);
+                return;
+            }
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
             }

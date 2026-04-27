@@ -18,7 +18,7 @@ export async function POST(req) {
 
     let connection;
     try {
-        const { docNo, path: wordPath, situationId, attachments, recipientEmpNums, recipients } = await req.json();
+        const { docNo, path: wordPath, situationId, attachments, recipientEmpNums, recipients, docType: frontendDocType } = await req.json();
 
         if (!docNo || !wordPath) {
             return NextResponse.json({ success: false, error: "بيانات ناقصة" }, { status: 400 });
@@ -67,12 +67,16 @@ export async function POST(req) {
             ? attachments.map(a => a.path).join(',')
             : null;
 
+        // استخدم النوع القادم من الواجهة، أو النوع الموجود مسبقاً، أو الافتراضي 1
+        const finalDocType = frontendDocType ? parseInt(frontendDocType) : (docType || 1);
+
         await connection.execute(
-            `UPDATE DOC_DATA_NEW SET FILE_NAME = :basePath, SECTORE = 1, FILE_ATTACH = :attachmentPath WHERE DOC_NO = :docNo`,
+            `UPDATE DOC_DATA_NEW SET FILE_NAME = :basePath, SECTORE = 1, FILE_ATTACH = :attachmentPath, DOC_TYPE = :finalDocType WHERE DOC_NO = :docNo`,
             {
                 basePath,
                 docNo,
-                attachmentPath: legacyAttachString
+                attachmentPath: legacyAttachString,
+                finalDocType
             },
             { autoCommit: false }
         );
@@ -112,8 +116,18 @@ export async function POST(req) {
             distributions = [{ empNum: recipientEmp, situationId: situationId || 7 }];
         }
 
-        // إرسال المكاتبة فعلياً لكل مستلم
+        // إرسال المكاتبة فعلياً لكل مستلم (مع منع التكرار)
         for (const target of distributions) {
+            // التحقق من عدم وجود سجل مسبق لنفس المكاتبة ونفس المستلم
+            const existCheck = await connection.execute(
+                `SELECT COUNT(*) FROM RECIP_GEHA_NEW WHERE DOC_NO = :docNo AND GEHA_C = :recipient`,
+                { docNo, recipient: target.empNum }
+            );
+            if (existCheck.rows[0][0] > 0) {
+                console.log(`[ARCHIVE] Skipping duplicate: DOC_NO=${docNo}, GEHA_C=${target.empNum}`);
+                continue;
+            }
+
             await connection.execute(`
             INSERT INTO RECIP_GEHA_NEW (
                 DOC_NO, DOC_DATE, PLACE_C, GEHA_C, SITUATION,SECTOR_C, ANSERED, REPLAY_PATH, SEND_DATE, 
@@ -166,12 +180,12 @@ export async function POST(req) {
                 throw new Error(resJson.error || "فشل نداء API التعديل");
             }
             
-            return NextResponse.json({ success: true, pdfPath: basePath });
+            return NextResponse.json({ success: true, pdfPath: pdfPathOnDisk });
 
         } catch (convErr) {
             console.error("Conversion via Update API Error:", convErr);
             // نعيد نجاح مع إشعار بالخطأ في التحويل، لأن الداتابيز اكتملت
-            return NextResponse.json({ success: true, pdfPath: basePath, warning: "تم الإرسال ولكن الرجاء تحديث PDF لاحقاً: " + (convErr.message || "خطأ غير معروف") });
+            return NextResponse.json({ success: true, pdfPath: pdfPathOnDisk, warning: "تم الإرسال ولكن الرجاء تحديث PDF لاحقاً: " + (convErr.message || "خطأ غير معروف") });
         }
 
     } catch (err) {

@@ -78,39 +78,48 @@ export async function POST(req) {
                 // انتظار قصير لضمان تزامن نظام الملفات بعد حفظ الـ Word
                 await new Promise(resolve => setTimeout(resolve, 500));
 
-                const psScript = `
-                    $word = New-Object -ComObject Word.Application;
-                    $word.Visible = $false;
-                    $word.DisplayAlerts = 0; 
-                    $word.ScreenUpdating = $false;
-                    try {
-                        # نفتح الملف كقراءة فقط (ReadOnly=$true) لضمان عدم المساس بتنسيق المستخدم
-                        $doc = $word.Documents.Open('${actualWordPath}', $false, $true);
-                        
-                        Start-Sleep -Seconds 1;
-                        $doc.Fields.Update();
-                        $doc.Repaginate();
-                        
-                        # التصدير إلى PDF (Format 17 = PDF) من النسخة المفتوحة حالياً
-                        $doc.SaveAs([ref]'${tempPdfPath}', [ref]17);
+                const escapedWordPath = actualWordPath.replace(/'/g, "''");
+                const escapedPdfPath = tempPdfPath.replace(/'/g, "''");
 
-                        # إغلاق بدون حفظ أي تغييرات (0 = wdDoNotSaveChanges)
-                        $doc.Close(0); 
-                    } catch {
-                        Write-Error $_.Exception.Message
-                        exit 1
-                    } finally {
-                        $word.Quit();
-                        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null;
-                        [GC]::Collect();
-                        [GC]::WaitForPendingFinalizers();
-                    }
-                `;
+                const psScript = [
+                    `$word = New-Object -ComObject Word.Application`,
+                    `$word.Visible = $false`,
+                    `$word.DisplayAlerts = 0`,
+                    `$word.ScreenUpdating = $false`,
+                    `try {`,
+                    `    $doc = $word.Documents.Open('${escapedWordPath}', $false, $true)`,
+                    `    Start-Sleep -Seconds 1`,
+                    `    $doc.Fields.Update()`,
+                    `    $doc.Repaginate()`,
+                    `    $doc.SaveAs([ref]'${escapedPdfPath}', [ref]17)`,
+                    `    $doc.Close(0)`,
+                    `} catch {`,
+                    `    Write-Error $_.Exception.Message`,
+                    `    exit 1`,
+                    `} finally {`,
+                    `    $word.Quit()`,
+                    `    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null`,
+                    `    [GC]::Collect()`,
+                    `    [GC]::WaitForPendingFinalizers()`,
+                    `}`
+                ].join("\n");
 
                 const tempPsFile = path.join(tempDir, `update_script_${docNo}.ps1`);
                 fs.writeFileSync(tempPsFile, psScript, { encoding: 'utf8' });
-                await execPromise(`powershell -ExecutionPolicy Bypass -File "${tempPsFile}"`);
-                if (fs.existsSync(tempPsFile)) fs.unlinkSync(tempPsFile);
+                
+                // ✅ استخدام execFile بدل exec لمنع shell injection
+                await new Promise((resolve, reject) => {
+                    const { execFile: execFileFn } = require('child_process');
+                    execFileFn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', tempPsFile], (err) => {
+                        if (fs.existsSync(tempPsFile)) fs.unlinkSync(tempPsFile);
+                        if (err) {
+                            console.error("Update PDF PowerShell Error:", err);
+                            reject(err);
+                        } else {
+                            resolve();
+                        }
+                    });
+                });
 
                 if (!fs.existsSync(tempPdfPath)) {
                     throw new Error("فشل توليد ملف PDF الجديد");

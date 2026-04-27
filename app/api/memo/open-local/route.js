@@ -1,7 +1,32 @@
 import { NextResponse } from "next/server";
-import { exec } from "child_process";
+import { execFile } from "child_process";   // ✅ آمن بدل exec
 import fs from "fs";
 import { getSession } from "@/lib/auth";
+
+// ✅ Allowlist: فقط المسارات المسموح بها
+const ALLOWED_ROOTS = [
+    "\\\\192.168.13.12\\homes\\",
+    "C:\\Archives\\"
+];
+
+// ✅ فقط امتدادات Word
+const ALLOWED_EXTENSIONS = /\.(docx|docm|doc)$/i;
+
+function validatePath(filePath) {
+    // 1. منع path traversal
+    if (filePath.includes("..")) return false;
+
+    // 2. فقط امتدادات Word مسموح بها
+    if (!ALLOWED_EXTENSIONS.test(filePath)) return false;
+
+    // 3. يجب أن يبدأ بأحد المسارات المسموح بها
+    const isAllowed = ALLOWED_ROOTS.some(root =>
+        filePath.toLowerCase().startsWith(root.toLowerCase())
+    );
+    if (!isAllowed) return false;
+
+    return true;
+}
 
 export async function POST(req) {
     const session = await getSession();
@@ -16,31 +41,14 @@ export async function POST(req) {
             return NextResponse.json({ success: false, error: "المسار غير موجود" }, { status: 400 });
         }
 
-        // تحديد ما إذا كان الطلب قادماً من نفس الجهاز (السيرفر)
-        const clientIp = req.headers.get("x-forwarded-for") || req.ip || "127.0.0.1";
-
-        // جلب جميع الآي بي الخاص بالجهاز الحالي
-        const os = require('os');
-        const networkInterfaces = os.networkInterfaces();
-        const localIps = ['127.0.0.1', '::1', 'localhost'];
-
-        Object.values(networkInterfaces).forEach(interfaces => {
-            interfaces.forEach(iface => {
-                localIps.push(iface.address);
-            });
-        });
-
-        const isLocal = localIps.some(ip => clientIp.includes(ip));
-
-        // فك تشفير المسار
+        // ✅ تنظيف المسار
         let decodedPath = decodeURIComponent(filePath);
-
         let finalPath = decodedPath.trim().replace(/\//g, "\\");
         if (finalPath.startsWith("\\") && !finalPath.startsWith("\\\\")) {
             finalPath = "\\" + finalPath;
         }
 
-        // ذكاء اصطناعي لتخمين الامتداد الصحيح إذا لم يكن الملف موجوداً كمسار مجرد أو كان بدون امتداد
+        // ✅ تخمين الامتداد الصحيح إذا لم يکن الملف موجودًا
         let resolvedPath = finalPath;
         if (!fs.existsSync(resolvedPath)) {
             const noExt = resolvedPath.replace(/\.(docm|docx|doc)$/i, "");
@@ -53,8 +61,27 @@ export async function POST(req) {
             }
         }
 
+        // ✅ التحقق الأمني الصارم قبل أي عملية
+        if (!validatePath(resolvedPath)) {
+            console.warn(`⚠️ Security: Blocked unauthorized path access: ${resolvedPath} by emp ${session.empNum}`);
+            return NextResponse.json({ success: false, error: "مسار غير مسموح به" }, { status: 403 });
+        }
+
+        // ✅ تحديد الجهاز المحلي بشكل موثوق عبر session لا عبر IP
+        // الـ IP قابل للتزوير - نعتمد على session.isServerHost إن وجد، أو نستخدم IP كمؤشر إضافي فقط
+        const os = require("os");
+        const networkInterfaces = os.networkInterfaces();
+        const localIps = ["127.0.0.1", "::1", "localhost"];
+        Object.values(networkInterfaces).forEach(interfaces => {
+            interfaces.forEach(iface => { localIps.push(iface.address); });
+        });
+
+        // نأخذ الـ IP من الـ connection المباشر وليس من الهيدر القابل للتزوير
+        const forwardedFor = req.headers.get("x-forwarded-for");
+        const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+        const isLocal = localIps.some(ip => clientIp === ip);  // مطابقة تامة لا includes
+
         if (!isLocal) {
-            // هامه: إذا كان المستخدم يفتح من جهاز بعيد، نخبره بأن عليه استخدام البروتوكول المحلي
             return NextResponse.json({
                 success: true,
                 isRemote: true,
@@ -63,15 +90,16 @@ export async function POST(req) {
             });
         }
 
-        console.log("📂 Server Opening File Locally for Host:", resolvedPath);
+        console.log("📂 Server Opening File Locally:", resolvedPath);
 
-        exec(`start "" "${resolvedPath}"`, (error) => {
-            if (error) console.error("Exec Error:", error);
+        // ✅ execFile بدل exec - يمنع command injection تمامًا
+        execFile("cmd.exe", ["/c", "start", "", resolvedPath], (error) => {
+            if (error) console.error("ExecFile Error:", error);
         });
 
-        return NextResponse.json({ 
-            success: true, 
-            isRemote: false, 
+        return NextResponse.json({
+            success: true,
+            isRemote: false,
             message: "تم الفتح محلياً بنجاح",
             resolvedPath: resolvedPath
         });

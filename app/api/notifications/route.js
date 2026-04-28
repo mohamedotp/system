@@ -109,7 +109,8 @@ export async function POST(req) {
         senderId: session.empNum,
         receiverId,
         message,
-        docNo
+        docNo,
+        isManual: 1  // تنبيه يدوي من صفحة التنبيهات
     });
 
     if (result.success) {

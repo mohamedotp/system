@@ -54,7 +54,8 @@ export async function GET(req) {
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
                     JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
                     WHERE n_sent.DOC_NO = r.DOC_NO 
-                    AND n_sent.SENDER_ID = :empNum) as NOTIFS_SENT_STR`
+                    AND n_sent.SENDER_ID = :empNum
+                    AND NVL(n_sent.IS_MANUAL, 0) = 1) as NOTIFS_SENT_STR`
             : `NULL as NOTIFS_SENT_STR`;
 
         const notifsReceivedSubquery = hasSalaryAccess
@@ -62,7 +63,8 @@ export async function GET(req) {
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
                     JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
                     WHERE n_rec.DOC_NO = r.DOC_NO 
-                    AND n_rec.RECEIVER_ID = :empNum) as NOTIFS_RECEIVED_STR`
+                    AND n_rec.RECEIVER_ID = :empNum
+                    AND NVL(n_rec.IS_MANUAL, 0) = 1) as NOTIFS_RECEIVED_STR`
             : `NULL as NOTIFS_RECEIVED_STR`;
 
         let query = `

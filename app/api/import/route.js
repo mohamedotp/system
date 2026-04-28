@@ -50,10 +50,10 @@ export async function GET(req) {
         // بناء الـ Query بناءً على الصلاحية
         // ==========================================
         const notifsSentSubquery = hasSalaryAccess
-            ? `(SELECT SUBSTR(LISTAGG(
+            ? `(SELECT LISTAGG(
                         e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
+                        ' | ' ON OVERFLOW TRUNCATE
+                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC)
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
                     JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
                     WHERE n_sent.DOC_NO = r.DOC_NO 
@@ -61,10 +61,10 @@ export async function GET(req) {
             : `NULL as NOTIFS_SENT_STR`;
 
         const notifsReceivedSubquery = hasSalaryAccess
-            ? `(SELECT SUBSTR(LISTAGG(
+            ? `(SELECT LISTAGG(
                         e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
+                        ' | ' ON OVERFLOW TRUNCATE
+                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC)
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
                     JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
                     WHERE n_rec.DOC_NO = r.DOC_NO 
@@ -90,14 +90,14 @@ export async function GET(req) {
                    NVL(d.MAIN_DOC, d.DOC_NO) as NODE_ID,
                    
                    /* 1. الزملاء المستلمين الحاليين (اللي وصلت لهم نفس المكاتبة معايا) */
-                   (SELECT SUBSTR(LISTAGG(
+                   (SELECT LISTAGG(
                         e_other.EMP_NAME || 
                         CASE WHEN st_other.SITUATION_DESC IS NOT NULL 
                              THEN ' (' || st_other.SITUATION_DESC || ')' 
                              ELSE '' 
                         END, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY e_other.EMP_NAME), 1, 3900)
+                        ' | ' ON OVERFLOW TRUNCATE
+                    ) WITHIN GROUP (ORDER BY e_other.EMP_NAME)
                      FROM RECIP_GEHA_NEW r_other
                     JOIN EMP_DOC e_other ON r_other.GEHA_C = e_other.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_other ON r_other.SITUATION = st_other.SITUATION_C
@@ -106,15 +106,15 @@ export async function GET(req) {
                     AND r_other.GEHA_C <> :empNum) as ALL_RECIPIENTS,
                    
                    /* 2. المحول إليهم مني (أنا اللي حولت لهم المكاتبة دي) */
-                   (SELECT SUBSTR(LISTAGG(
+                   (SELECT LISTAGG(
                         e_my.EMP_NAME || 
                         CASE WHEN st_my.SITUATION_DESC IS NOT NULL 
                              THEN ' (' || st_my.SITUATION_DESC || ')' 
                              ELSE '' 
                         END || 
                         ' - ' || TO_CHAR(r_my.DOC_DATE, 'DD/MM'), 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY r_my.DOC_DATE DESC), 1, 3900)
+                        ' | ' ON OVERFLOW TRUNCATE
+                    ) WITHIN GROUP (ORDER BY r_my.DOC_DATE DESC)
                     FROM RECIP_GEHA_NEW r_my
                     JOIN EMP_DOC e_my ON r_my.GEHA_C = e_my.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_my ON r_my.SITUATION = st_my.SITUATION_C

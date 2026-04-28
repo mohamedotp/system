@@ -17,9 +17,9 @@ export async function POST(req) {
         await conn.execute(`
             MERGE INTO SYSTEM_PUSH_SUBS t
             USING (SELECT :empNum as EMP_NUM, :sub as SUBS_JSON, :endpoint as EP FROM DUAL) s
-            ON (t.EMP_NUM = s.EMP_NUM AND t.ENDPOINT = s.EP)
+            ON (t.ENDPOINT = s.EP)
             WHEN MATCHED THEN
-                UPDATE SET SUBSCRIPTION_JSON = s.SUBS_JSON, CREATED_AT = CURRENT_TIMESTAMP
+                UPDATE SET EMP_NUM = s.EMP_NUM, SUBSCRIPTION_JSON = s.SUBS_JSON, CREATED_AT = CURRENT_TIMESTAMP
             WHEN NOT MATCHED THEN
                 INSERT (EMP_NUM, SUBSCRIPTION_JSON, ENDPOINT) VALUES (s.EMP_NUM, s.SUBS_JSON, s.EP)
         `, {

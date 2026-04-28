@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getConnection2 } from "@/lib/oracle";
+import { getConnection, getConnection2 } from "@/lib/oracle";
 import { getSession } from "@/lib/auth";
 
 export async function GET(req) {
@@ -26,6 +26,48 @@ export async function GET(req) {
     try {
         connection = await getConnection2();
 
+        // ==========================================
+        // نتحقق أولاً هل مستخدم المكاتبات عنده
+        // صلاحية الوصول لـ SALARY.SYSTEM_NOTIFICATIONS
+        // ==========================================
+        let hasSalaryAccess = false;
+        try {
+            await connection.execute(
+                `SELECT 1 FROM SALARY.SYSTEM_NOTIFICATIONS WHERE ROWNUM = 1`,
+                {},
+                { maxRows: 1 }
+            );
+            hasSalaryAccess = true;
+        } catch (accessErr) {
+            console.warn("⚠️ No access to SALARY.SYSTEM_NOTIFICATIONS from doc user. Notifications will be skipped in export query.");
+            hasSalaryAccess = false;
+        }
+
+        // ==========================================
+        // بناء الـ Query بناءً على الصلاحية
+        // ==========================================
+        const notifsSentSubquery = hasSalaryAccess
+            ? `MAX((SELECT SUBSTR(LISTAGG(
+                        e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
+                    FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
+                    JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
+                    WHERE n_sent.DOC_NO = r.DOC_NO 
+                    AND n_sent.SENDER_ID = :empNum)) as NOTIFS_SENT_STR`
+            : `NULL as NOTIFS_SENT_STR`;
+
+        const notifsReceivedSubquery = hasSalaryAccess
+            ? `MAX((SELECT SUBSTR(LISTAGG(
+                        e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
+                    FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
+                    JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
+                    WHERE n_rec.DOC_NO = r.DOC_NO 
+                    AND n_rec.RECEIVER_ID = :empNum)) as NOTIFS_RECEIVED_STR`
+            : `NULL as NOTIFS_RECEIVED_STR`;
+
         let query = `
             SELECT r.DOC_NO, 
                    MAX(r.DOC_DATE) as DOC_DATE,
@@ -49,27 +91,8 @@ export async function GET(req) {
                    TO_CHAR(MAX(r.SEEN_DATE), 'YYYY-MM-DD HH24:MI') as SEEN_DATE_STR,
                    TO_CHAR(MAX(r.SEND_DATE), 'YYYY-MM-DD HH24:MI:SS') as SEND_DATE_STR,
                    MAX(NVL(d.MAIN_DOC, d.DOC_NO)) as NODE_ID,
-
-                   /* إشعارات التنبيه التي أرسلتها */
-                   MAX((SELECT SUBSTR(LISTAGG(
-                        e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
-                    FROM SYSTEM_NOTIFICATIONS n_sent
-                    JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
-                    WHERE n_sent.DOC_NO = r.DOC_NO 
-                    AND n_sent.SENDER_ID = :empNum)) as NOTIFS_SENT_STR,
-
-                   /* إشعارات التنبيه التي استلمتها */
-                   MAX((SELECT SUBSTR(LISTAGG(
-                        e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
-                    FROM SYSTEM_NOTIFICATIONS n_rec
-                    JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
-                    WHERE n_rec.DOC_NO = r.DOC_NO 
-                    AND n_rec.RECEIVER_ID = :empNum)) as NOTIFS_RECEIVED_STR
-
+                   ${notifsSentSubquery},
+                   ${notifsReceivedSubquery}
             FROM RECIP_GEHA_NEW r
             LEFT JOIN DOC_DATA_NEW d ON r.DOC_NO = d.DOC_NO
             LEFT JOIN ANSERED_TYPE a ON r.ANSERED = a.ANSERED_C
@@ -78,9 +101,7 @@ export async function GET(req) {
             LEFT JOIN EMP_DOC eg ON r.GEHA_C = eg.EMP_NUM
             WHERE r.PLACE_C = :empNum`;
 
-        const binds = {
-            empNum
-        };
+        const binds = { empNum };
 
         if (!allPending) {
             if (fromDate && toDate) {
@@ -191,7 +212,7 @@ export async function GET(req) {
     } catch (err) {
         console.error("Outbox API Error:", err);
         return NextResponse.json(
-            { success: false, error: "Database error" },
+            { success: false, error: err.message || "Database error" },
             { status: 500 }
         );
     } finally {

@@ -76,8 +76,8 @@ export async function GET(req) {
                     docBinds,
                     { outFormat: 4002 }
                 );
-                docResult.rows.forEach(r => { 
-                    docMap[r.DOC_NO] = { path: r.FILE_NAME, date: r.D_DATE }; 
+                docResult.rows.forEach(r => {
+                    docMap[r.DOC_NO] = { path: r.FILE_NAME, date: r.D_DATE };
                 });
             }
 

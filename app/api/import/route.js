@@ -29,6 +29,48 @@ export async function GET(req) {
         connection = await getConnection2();
         console.log("✅ Import API: Database connection successful");
 
+        // ==========================================
+        // نتحقق أولاً هل مستخدم المكاتبات عنده
+        // صلاحية الوصول لـ SALARY.SYSTEM_NOTIFICATIONS
+        // ==========================================
+        let hasSalaryAccess = false;
+        try {
+            await connection.execute(
+                `SELECT 1 FROM SALARY.SYSTEM_NOTIFICATIONS WHERE ROWNUM = 1`,
+                {},
+                { maxRows: 1 }
+            );
+            hasSalaryAccess = true;
+        } catch (accessErr) {
+            console.warn("⚠️ No access to SALARY.SYSTEM_NOTIFICATIONS from doc user. Notifications will be skipped in import query.");
+            hasSalaryAccess = false;
+        }
+
+        // ==========================================
+        // بناء الـ Query بناءً على الصلاحية
+        // ==========================================
+        const notifsSentSubquery = hasSalaryAccess
+            ? `(SELECT SUBSTR(LISTAGG(
+                        e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
+                    FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
+                    JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
+                    WHERE n_sent.DOC_NO = r.DOC_NO 
+                    AND n_sent.SENDER_ID = :empNum) as NOTIFS_SENT_STR`
+            : `NULL as NOTIFS_SENT_STR`;
+
+        const notifsReceivedSubquery = hasSalaryAccess
+            ? `(SELECT SUBSTR(LISTAGG(
+                        e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
+                    FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
+                    JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
+                    WHERE n_rec.DOC_NO = r.DOC_NO 
+                    AND n_rec.RECEIVER_ID = :empNum) as NOTIFS_RECEIVED_STR`
+            : `NULL as NOTIFS_RECEIVED_STR`;
+
         let query = `
             SELECT r.*, 
                    r.SEEN_FLAG,
@@ -86,24 +128,10 @@ export async function GET(req) {
                     AND r_count.PLACE_C = :empNum) as MY_TRANSFERS_COUNT,
                     
                    /* 4. إشعارات التنبيه التي أرسلتها */
-                   (SELECT SUBSTR(LISTAGG(
-                        e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
-                    FROM SYSTEM_NOTIFICATIONS n_sent
-                    JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
-                    WHERE n_sent.DOC_NO = r.DOC_NO 
-                    AND n_sent.SENDER_ID = :empNum) as NOTIFS_SENT_STR,
+                   ${notifsSentSubquery},
 
                    /* 5. إشعارات التنبيه التي استلمتها */
-                   (SELECT SUBSTR(LISTAGG(
-                        e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
-                    FROM SYSTEM_NOTIFICATIONS n_rec
-                    JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
-                    WHERE n_rec.DOC_NO = r.DOC_NO 
-                    AND n_rec.RECEIVER_ID = :empNum) as NOTIFS_RECEIVED_STR
+                   ${notifsReceivedSubquery}
                    
             FROM RECIP_GEHA_NEW r
             LEFT JOIN DOC_DATA_NEW d ON r.DOC_NO = d.DOC_NO

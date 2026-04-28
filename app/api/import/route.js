@@ -90,14 +90,14 @@ export async function GET(req) {
                    NVL(d.MAIN_DOC, d.DOC_NO) as NODE_ID,
                    
                    /* 1. الزملاء المستلمين الحاليين (اللي وصلت لهم نفس المكاتبة معايا) */
-                   (SELECT LISTAGG(
+                   (SELECT SUBSTR(LISTAGG(
                         e_other.EMP_NAME || 
                         CASE WHEN st_other.SITUATION_DESC IS NOT NULL 
                              THEN ' (' || st_other.SITUATION_DESC || ')' 
                              ELSE '' 
                         END, 
                         ' | '
-                    ) WITHIN GROUP (ORDER BY e_other.EMP_NAME)
+                    ) WITHIN GROUP (ORDER BY e_other.EMP_NAME), 1, 3900)
                      FROM RECIP_GEHA_NEW r_other
                     JOIN EMP_DOC e_other ON r_other.GEHA_C = e_other.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_other ON r_other.SITUATION = st_other.SITUATION_C
@@ -106,7 +106,7 @@ export async function GET(req) {
                     AND r_other.GEHA_C <> :empNum) as ALL_RECIPIENTS,
                    
                    /* 2. المحول إليهم مني (أنا اللي حولت لهم المكاتبة دي) */
-                   (SELECT LISTAGG(
+                   (SELECT SUBSTR(LISTAGG(
                         e_my.EMP_NAME || 
                         CASE WHEN st_my.SITUATION_DESC IS NOT NULL 
                              THEN ' (' || st_my.SITUATION_DESC || ')' 
@@ -114,7 +114,7 @@ export async function GET(req) {
                         END || 
                         ' - ' || TO_CHAR(r_my.DOC_DATE, 'DD/MM'), 
                         ' | '
-                    ) WITHIN GROUP (ORDER BY r_my.DOC_DATE DESC)
+                    ) WITHIN GROUP (ORDER BY r_my.DOC_DATE DESC), 1, 3900)
                     FROM RECIP_GEHA_NEW r_my
                     JOIN EMP_DOC e_my ON r_my.GEHA_C = e_my.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_my ON r_my.SITUATION = st_my.SITUATION_C

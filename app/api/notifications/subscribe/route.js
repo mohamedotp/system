@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getConnection } from "@/lib/oracle";
+import { getConnection, getConnection2 } from "@/lib/oracle";
 import { getSession } from "@/lib/auth";
 
 export async function POST(req) {
@@ -7,33 +7,42 @@ export async function POST(req) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const subscription = await req.json();
-    const empNum = session.empNum;
+    const empNum = String(session.empNum);
+    const endpoint = subscription.endpoint;
+    const subJson = JSON.stringify(subscription);
 
     let conn;
     try {
-        conn = await getConnection();
+        // محاولة الاتصال بحساب SALARY أولاً، ثم المكاتبات كبديل
+        try {
+            conn = await getConnection();
+        } catch (connErr) {
+            console.warn("⚠️ Subscribe: Falling back to getConnection2:", connErr.message);
+            conn = await getConnection2();
+        }
 
-        // استخدام MERGE للدمج بناءً على رقم الموظف والرابط (Endpoint)
-        await conn.execute(`
-            MERGE INTO SYSTEM_PUSH_SUBS t
-            USING (SELECT :empNum as EMP_NUM, :sub as SUBS_JSON, :endpoint as EP FROM DUAL) s
-            ON (t.ENDPOINT = s.EP)
-            WHEN MATCHED THEN
-                UPDATE SET EMP_NUM = s.EMP_NUM, SUBSCRIPTION_JSON = s.SUBS_JSON, CREATED_AT = CURRENT_TIMESTAMP
-            WHEN NOT MATCHED THEN
-                INSERT (EMP_NUM, SUBSCRIPTION_JSON, ENDPOINT) VALUES (s.EMP_NUM, s.SUBS_JSON, s.EP)
-        `, {
-            empNum: String(empNum),
-            sub: JSON.stringify(subscription),
-            endpoint: subscription.endpoint
-        });
+        // DELETE + INSERT بدلاً من MERGE لتجنب ORA-38104
+        // (Oracle لا يسمح بتحديث الأعمدة المستخدمة في ON clause)
+        await conn.execute(
+            `DELETE FROM SYSTEM_PUSH_SUBS WHERE ENDPOINT = :endpoint`,
+            { endpoint },
+            { autoCommit: false }
+        );
+
+        await conn.execute(
+            `INSERT INTO SYSTEM_PUSH_SUBS (EMP_NUM, SUBSCRIPTION_JSON, ENDPOINT, CREATED_AT)
+             VALUES (:empNum, :subJson, :endpoint, CURRENT_TIMESTAMP)`,
+            { empNum, subJson, endpoint },
+            { autoCommit: false }
+        );
 
         await conn.commit();
         return NextResponse.json({ success: true });
     } catch (err) {
         console.error("Subscription Error:", err);
+        if (conn) await conn.rollback().catch(() => {});
         return NextResponse.json({ error: err.message }, { status: 500 });
     } finally {
-        if (conn) await conn.close();
+        if (conn) await conn.close().catch(() => {});
     }
 }

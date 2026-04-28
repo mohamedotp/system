@@ -47,10 +47,10 @@ export async function GET(req) {
         // بناء الـ Query بناءً على الصلاحية
         // ==========================================
         const notifsSentSubquery = hasSalaryAccess
-            ? `MAX((SELECT SUBSTR(LISTAGG(
+            ? `MAX((SELECT LISTAGG(
                         e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
+                        ' | ' ON OVERFLOW TRUNCATE
+                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC)
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
                     JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
                     WHERE n_sent.DOC_NO = r.DOC_NO 
@@ -58,10 +58,10 @@ export async function GET(req) {
             : `NULL as NOTIFS_SENT_STR`;
 
         const notifsReceivedSubquery = hasSalaryAccess
-            ? `MAX((SELECT SUBSTR(LISTAGG(
+            ? `MAX((SELECT LISTAGG(
                         e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
-                        ' | '
-                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
+                        ' | ' ON OVERFLOW TRUNCATE
+                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC)
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
                     JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
                     WHERE n_rec.DOC_NO = r.DOC_NO 

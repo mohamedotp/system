@@ -531,6 +531,6 @@ export default function Navbar() {
           )}
         </div>
       )}
-    </>
+    </TooltipProvider>
   );
 }

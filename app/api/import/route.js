@@ -50,7 +50,7 @@ export async function GET(req) {
         // بناء الـ Query بناءً على الصلاحية
         // ==========================================
         const notifsSentSubquery = hasSalaryAccess
-            ? `(SELECT RTRIM(XMLAGG(XMLELEMENT(E, e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE || ' | ') ORDER BY n_sent.CREATED_AT DESC).GETCLOBVAL(), ' | ')
+            ? `(SELECT XMLAGG(XMLELEMENT(E, e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE || ' | ') ORDER BY n_sent.CREATED_AT DESC).GETCLOBVAL()
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
                     JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
                     WHERE n_sent.DOC_NO = r.DOC_NO 
@@ -58,7 +58,7 @@ export async function GET(req) {
             : `NULL as NOTIFS_SENT_STR`;
 
         const notifsReceivedSubquery = hasSalaryAccess
-            ? `(SELECT RTRIM(XMLAGG(XMLELEMENT(E, e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE || ' | ') ORDER BY n_rec.CREATED_AT DESC).GETCLOBVAL(), ' | ')
+            ? `(SELECT XMLAGG(XMLELEMENT(E, e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE || ' | ') ORDER BY n_rec.CREATED_AT DESC).GETCLOBVAL()
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
                     JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
                     WHERE n_rec.DOC_NO = r.DOC_NO 
@@ -83,13 +83,13 @@ export async function GET(req) {
                    NVL(d.DOC_STATUS, 0) as DOC_STATUS,
                    NVL(d.MAIN_DOC, d.DOC_NO) as NODE_ID,
                    
-                   /* 1. الزملاء المستلمين الحاليين (اللي وصلت لهم نفس المكاتبة معايا) */
-                   (SELECT RTRIM(XMLAGG(XMLELEMENT(E, 
+                    /* 1. الزملاء المستلمين الحاليين (اللي وصلت لهم نفس المكاتبة معايا) */
+                   (SELECT XMLAGG(XMLELEMENT(E, 
                         e_other.EMP_NAME || 
                         CASE WHEN st_other.SITUATION_DESC IS NOT NULL 
                              THEN ' (' || st_other.SITUATION_DESC || ')' 
                              ELSE '' 
-                        END || ' | ') ORDER BY e_other.EMP_NAME).GETCLOBVAL(), ' | ')
+                        END || ' | ') ORDER BY e_other.EMP_NAME).GETCLOBVAL()
                      FROM RECIP_GEHA_NEW r_other
                     JOIN EMP_DOC e_other ON r_other.GEHA_C = e_other.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_other ON r_other.SITUATION = st_other.SITUATION_C
@@ -98,13 +98,13 @@ export async function GET(req) {
                     AND r_other.GEHA_C <> :empNum) as ALL_RECIPIENTS,
                    
                    /* 2. المحول إليهم مني (أنا اللي حولت لهم المكاتبة دي) */
-                   (SELECT RTRIM(XMLAGG(XMLELEMENT(E, 
+                   (SELECT XMLAGG(XMLELEMENT(E, 
                         e_my.EMP_NAME || 
                         CASE WHEN st_my.SITUATION_DESC IS NOT NULL 
                              THEN ' (' || st_my.SITUATION_DESC || ')' 
                              ELSE '' 
                         END || 
-                        ' - ' || TO_CHAR(r_my.DOC_DATE, 'DD/MM') || ' | ') ORDER BY r_my.DOC_DATE DESC).GETCLOBVAL(), ' | ')
+                        ' - ' || TO_CHAR(r_my.DOC_DATE, 'DD/MM') || ' | ') ORDER BY r_my.DOC_DATE DESC).GETCLOBVAL()
                     FROM RECIP_GEHA_NEW r_my
                     JOIN EMP_DOC e_my ON r_my.GEHA_C = e_my.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_my ON r_my.SITUATION = st_my.SITUATION_C
@@ -204,7 +204,11 @@ export async function GET(req) {
         const rows = result.rows.map(row => {
             const obj = {};
             row.forEach((val, idx) => {
-                obj[columns[idx]] = val;
+                let processedVal = val;
+                if (typeof val === 'string') {
+                    processedVal = val.replace(/ \| $/, '');
+                }
+                obj[columns[idx]] = processedVal;
             });
             return obj;
         });

@@ -89,7 +89,7 @@ export async function GET(req) {
                         CASE WHEN st_other.SITUATION_DESC IS NOT NULL 
                              THEN ' (' || st_other.SITUATION_DESC || ')' 
                              ELSE '' 
-                        END || ' | ') ORDER BY e_other.EMP_NAME).GETCLOBVAL()
+                        END || ' | ') ORDER BY e_other.EMP_NAME).EXTRACT('//text()').GETCLOBVAL()
                      FROM RECIP_GEHA_NEW r_other
                     JOIN EMP_DOC e_other ON r_other.GEHA_C = e_other.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_other ON r_other.SITUATION = st_other.SITUATION_C
@@ -104,7 +104,7 @@ export async function GET(req) {
                              THEN ' (' || st_my.SITUATION_DESC || ')' 
                              ELSE '' 
                         END || 
-                        ' - ' || TO_CHAR(r_my.DOC_DATE, 'DD/MM') || ' | ') ORDER BY r_my.DOC_DATE DESC).GETCLOBVAL()
+                        ' - ' || TO_CHAR(r_my.DOC_DATE, 'DD/MM') || ' | ') ORDER BY r_my.DOC_DATE DESC).EXTRACT('//text()').GETCLOBVAL()
                     FROM RECIP_GEHA_NEW r_my
                     JOIN EMP_DOC e_my ON r_my.GEHA_C = e_my.EMP_NUM
                     LEFT JOIN SITUATION_TYPE st_my ON r_my.SITUATION = st_my.SITUATION_C
@@ -206,7 +206,14 @@ export async function GET(req) {
             row.forEach((val, idx) => {
                 let processedVal = val;
                 if (typeof val === 'string') {
-                    processedVal = val.replace(/ \| $/, '');
+                    // إزالة تاغات XML في حال وجودها وفك ترميز الرموز الخاصة
+                    processedVal = val.replace(/<E>/g, '').replace(/<\/E>/g, '')
+                                     .replace(/&amp;/g, '&')
+                                     .replace(/&lt;/g, '<')
+                                     .replace(/&gt;/g, '>')
+                                     .replace(/&quot;/g, '"')
+                                     .replace(/&apos;/g, "'")
+                                     .replace(/ \| $/, '');
                 }
                 obj[columns[idx]] = processedVal;
             });

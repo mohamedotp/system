@@ -47,7 +47,7 @@ export async function GET(req) {
         // بناء الـ Query بناءً على الصلاحية
         // ==========================================
         const notifsSentSubquery = hasSalaryAccess
-            ? `(SELECT XMLAGG(XMLELEMENT(E, e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE || ' | ') ORDER BY n_sent.CREATED_AT DESC).GETCLOBVAL()
+            ? `(SELECT XMLAGG(XMLELEMENT(E, e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE || ' | ') ORDER BY n_sent.CREATED_AT DESC).EXTRACT('//text()').GETCLOBVAL()
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
                     JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
                     WHERE n_sent.DOC_NO = r.DOC_NO 
@@ -55,7 +55,7 @@ export async function GET(req) {
             : `NULL as NOTIFS_SENT_STR`;
 
         const notifsReceivedSubquery = hasSalaryAccess
-            ? `(SELECT XMLAGG(XMLELEMENT(E, e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE || ' | ') ORDER BY n_rec.CREATED_AT DESC).GETCLOBVAL()
+            ? `(SELECT XMLAGG(XMLELEMENT(E, e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE || ' | ') ORDER BY n_rec.CREATED_AT DESC).EXTRACT('//text()').GETCLOBVAL()
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
                     JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
                     WHERE n_rec.DOC_NO = r.DOC_NO 
@@ -67,10 +67,10 @@ export async function GET(req) {
                    MAX(r.DOC_DATE) as DOC_DATE,
                    TO_CHAR(MAX(r.DOC_DATE), 'YYYY-MM-DD HH24:MI') as DOC_DATE_STR,
                    MAX(d.SUBJECT) as SUBJECT,
-                   XMLAGG(XMLELEMENT(E, eg.EMP_NAME || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL() as GEHA_NAME,
-                   XMLAGG(XMLELEMENT(E, eg.SEC_N || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL() as GEHA_SEC,
-                   XMLAGG(XMLELEMENT(E, NVL(r.SEEN_FLAG, 0) || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL() as GEHA_SEEN_FLAGS,
-                   XMLAGG(XMLELEMENT(E, NVL(TO_CHAR(r.SEEN_DATE, 'YYYY-MM-DD HH24:MI'), 'N/A') || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL() as GEHA_SEEN_DATES,
+                   XMLAGG(XMLELEMENT(E, eg.EMP_NAME || ' | ') ORDER BY eg.EMP_NAME).EXTRACT('//text()').GETCLOBVAL() as GEHA_NAME,
+                   XMLAGG(XMLELEMENT(E, eg.SEC_N || ' | ') ORDER BY eg.EMP_NAME).EXTRACT('//text()').GETCLOBVAL() as GEHA_SEC,
+                   XMLAGG(XMLELEMENT(E, NVL(r.SEEN_FLAG, 0) || ' | ') ORDER BY eg.EMP_NAME).EXTRACT('//text()').GETCLOBVAL() as GEHA_SEEN_FLAGS,
+                   XMLAGG(XMLELEMENT(E, NVL(TO_CHAR(r.SEEN_DATE, 'YYYY-MM-DD HH24:MI'), 'N/A') || ' | ') ORDER BY eg.EMP_NAME).EXTRACT('//text()').GETCLOBVAL() as GEHA_SEEN_DATES,
                    MAX(a.ANSERED_DESC) as ANSERED_DESC,
                    MAX(st.SITUATION_DESC) as SITUATION_DESC,
                    MAX(dk.DOC_DESC_A) as DOC_DESC_A,
@@ -148,7 +148,14 @@ export async function GET(req) {
             row.forEach((val, idx) => {
                 let processedVal = val;
                 if (typeof val === 'string') {
-                    processedVal = val.replace(/ \| $/, '');
+                    // إزالة تاغات XML في حال وجودها وفك ترميز الرموز الخاصة
+                    processedVal = val.replace(/<E>/g, '').replace(/<\/E>/g, '')
+                                     .replace(/&amp;/g, '&')
+                                     .replace(/&lt;/g, '<')
+                                     .replace(/&gt;/g, '>')
+                                     .replace(/&quot;/g, '"')
+                                     .replace(/&apos;/g, "'")
+                                     .replace(/ \| $/, '');
                 }
                 obj[columns[idx]] = processedVal;
             });

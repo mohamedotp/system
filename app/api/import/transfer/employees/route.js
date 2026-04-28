@@ -29,7 +29,7 @@ export async function GET(req) {
           JOIN salary.MASTER mas ON m.emp_num = mas.emp_num 
             AND mas.up_date = (SELECT DISTINCT MAX (up_date) FROM salary.MASTER e WHERE e.emp_num = m.emp_num)
           LEFT JOIN salary.sector s ON mas.nmber = s.sec_no
-          WHERE m.emp_num IN (5000, 1734, 153, 260, 5051, 5033, 5035, 3780, 5006, 5020, 1726, 370, 654, 394, 146, 169, 3782, 50009, 9020,5037,30001)
+          WHERE m.emp_num IN (5000, 1734, 153, 260, 5051, 5033, 5035, 3780, 5006, 5020, 1726, 370, 654, 394, 146, 169, 3782, 50009, 9020,5037,30001,1809)
       )
       GROUP BY emp_num, emp_name, sec_no, sec_n
       ORDER BY nmber_doc, emp_num

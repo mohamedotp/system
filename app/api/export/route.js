@@ -48,7 +48,28 @@ export async function GET(req) {
                    MAX(r.SEEN_FLAG) as SEEN_FLAG,
                    TO_CHAR(MAX(r.SEEN_DATE), 'YYYY-MM-DD HH24:MI') as SEEN_DATE_STR,
                    TO_CHAR(MAX(r.SEND_DATE), 'YYYY-MM-DD HH24:MI:SS') as SEND_DATE_STR,
-                   MAX(NVL(d.MAIN_DOC, d.DOC_NO)) as NODE_ID
+                   MAX(NVL(d.MAIN_DOC, d.DOC_NO)) as NODE_ID,
+
+                   /* إشعارات التنبيه التي أرسلتها */
+                   MAX((SELECT SUBSTR(LISTAGG(
+                        e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
+                    FROM SYSTEM_NOTIFICATIONS n_sent
+                    JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
+                    WHERE n_sent.DOC_NO = r.DOC_NO 
+                    AND n_sent.SENDER_ID = :empNum)) as NOTIFS_SENT_STR,
+
+                   /* إشعارات التنبيه التي استلمتها */
+                   MAX((SELECT SUBSTR(LISTAGG(
+                        e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
+                    FROM SYSTEM_NOTIFICATIONS n_rec
+                    JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
+                    WHERE n_rec.DOC_NO = r.DOC_NO 
+                    AND n_rec.RECEIVER_ID = :empNum)) as NOTIFS_RECEIVED_STR
+
             FROM RECIP_GEHA_NEW r
             LEFT JOIN DOC_DATA_NEW d ON r.DOC_NO = d.DOC_NO
             LEFT JOIN ANSERED_TYPE a ON r.ANSERED = a.ANSERED_C
@@ -70,8 +91,6 @@ export async function GET(req) {
                 `;
                 binds.fromDate = fromDate;
                 binds.toDate = toDate;
-            } else if (!search) {
-                query += ` AND TRUNC(r.DOC_DATE) = TRUNC(SYSDATE)`;
             }
         }
 

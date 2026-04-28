@@ -90,8 +90,8 @@ export default function ExportPage() {
 
     // الفلاتر
     const today = new Date().toISOString().split('T')[0];
-    const [fromDate, setFromDate] = useState(today);
-    const [toDate, setToDate] = useState(today);
+    const [fromDate, setFromDate] = useState("");
+    const [toDate, setToDate] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [incoming, setIncoming] = useState(false);
     const [internal, setInternal] = useState(false);
@@ -211,14 +211,10 @@ export default function ExportPage() {
                         setFavorites([]);
                     }
 
-                    // استعادة حالة الفلاتر بعد تحميل المستخدم
-                    loadFilterState();
                     setIsFiltersLoaded(true);
                 }
             } catch (err) {
                 console.error("Error fetching user session:", err);
-                // حتى لو فشل تحميل المستخدم، نحاول استعادة الفلاتر
-                loadFilterState();
                 setIsFiltersLoaded(true);
             }
         };
@@ -226,52 +222,6 @@ export default function ExportPage() {
         fetchUserAndFavs();
         fetchEmployees(); // جلب الموظفين لضمان عمل التنبيهات السريعة
     }, []);
-
-    // حفظ الفلاتر تلقائياً عند تغيير أي منها (فقط بعد التحميل الأول)
-    useEffect(() => {
-        if (isFiltersLoaded) {
-            saveFilterState();
-        }
-    }, [fromDate, toDate, searchQuery, incoming, internal, answered, pending, allPending, isFiltersLoaded]);
-
-
-    // دالة لحفظ حالة الفلاتر
-    const saveFilterState = () => {
-        const filterState = {
-            fromDate,
-            toDate,
-            searchQuery,
-            incoming,
-            internal,
-            answered,
-            pending,
-            allPending
-        };
-        localStorage.setItem('exportPageFilters', JSON.stringify(filterState));
-    };
-
-    // دالة لاستعادة حالة الفلاتر
-    const loadFilterState = () => {
-        const savedFilters = localStorage.getItem('exportPageFilters');
-        if (savedFilters) {
-            try {
-                const parsed = JSON.parse(savedFilters);
-                setFromDate(parsed.fromDate || today);
-                setToDate(parsed.toDate || today);
-                setSearchQuery(parsed.searchQuery || "");
-                setIncoming(parsed.incoming || false);
-                setInternal(parsed.internal || false);
-                setAnswered(parsed.answered || false);
-                setPending(parsed.pending || false);
-                setAllPending(parsed.allPending || false);
-
-                return parsed;
-            } catch (error) {
-                console.error("Error loading filters:", error);
-            }
-        }
-        return null;
-    };
 
     const toggleFavorite = (emp) => {
         // ✅ حماية إضافية
@@ -739,33 +689,6 @@ export default function ExportPage() {
         }
     };
 
-    const resetFilters = () => {
-        const defaultFilters = {
-            fromDate: today,
-            toDate: today,
-            searchQuery: "",
-            incoming: false,
-            internal: false,
-            answered: false,
-            pending: false,
-            allPending: false
-        };
-
-        setFromDate(today);
-        setToDate(today);
-        setSearchQuery("");
-        setIncoming(false);
-        setInternal(false);
-        setAnswered(false);
-        setPending(false);
-        setAllPending(false);
-
-        // حذف الفلاتر المحفوظة
-        localStorage.removeItem('exportPageFilters');
-
-        // جلب البيانات بدون فلاتر
-        fetchData(defaultFilters);
-    };
 
     const handleRecipientClick = (name) => {
         setSearchQuery(name);
@@ -1147,14 +1070,6 @@ export default function ExportPage() {
                                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                                         <span className="font-bold">تطبيق</span>
                                     </Button>
-                                    <Button
-                                        onClick={resetFilters}
-                                        variant="outline"
-                                        className="h-11 px-6 border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-xl transition-all duration-300 group"
-                                    >
-                                        <X className="w-4 h-4 ml-2 group-hover:rotate-90 transition-transform duration-300" />
-                                        <span className="font-medium">إعادة تعيين</span>
-                                    </Button>
                                 </form>
                             </div>
                         </div>
@@ -1317,39 +1232,111 @@ export default function ExportPage() {
                                                 </td>
                                                 <td className="px-6 py-5 text-center">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-9 w-9 p-0 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedDoc(item);
+                                                        {(() => {
+                                                            const notifButton = (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-9 w-9 p-0 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors relative"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedDoc(item);
 
-                                                                // استخراج المستلمين الأصليين (GEHA_C قد يحتوي على أكثر من كود مفصولة بـ ' | ')
-                                                                let initialRecipients = [];
-                                                                if (item.GEHA_C) {
-                                                                    const codes = String(item.GEHA_C).split(/[,|]/).map(c => c.trim()).filter(Boolean);
-                                                                    initialRecipients = employees.filter(emp =>
-                                                                        codes.includes(emp.EMP_NUM.toString())
-                                                                    );
-                                                                }
-                                                                // كخطة بديلة: جلب من GEHA_NAME إذا لم يُعثر على أحد
-                                                                if (initialRecipients.length === 0 && item.GEHA_C) {
-                                                                    const singleEmp = employees.find(emp =>
-                                                                        emp.EMP_NUM.toString() === item.GEHA_C.toString()
-                                                                    );
-                                                                    if (singleEmp) initialRecipients = [singleEmp];
-                                                                }
+                                                                        // استخراج المستلمين الأصليين (GEHA_C قد يحتوي على أكثر من كود مفصولة بـ ' | ')
+                                                                        let initialRecipients = [];
+                                                                        if (item.GEHA_C) {
+                                                                            const codes = String(item.GEHA_C).split(/[,|]/).map(c => c.trim()).filter(Boolean);
+                                                                            initialRecipients = employees.filter(emp =>
+                                                                                codes.includes(emp.EMP_NUM.toString())
+                                                                            );
+                                                                        }
+                                                                        // كخطة بديلة: جلب من GEHA_NAME إذا لم يُعثر على أحد
+                                                                        if (initialRecipients.length === 0 && item.GEHA_C) {
+                                                                            const singleEmp = employees.find(emp =>
+                                                                                emp.EMP_NUM.toString() === item.GEHA_C.toString()
+                                                                            );
+                                                                            if (singleEmp) initialRecipients = [singleEmp];
+                                                                        }
 
-                                                                setNotifRecipients(initialRecipients);
-                                                                setIsNotifModalOpen(true);
-                                                                setNotifMessage(`بخصوص المكاتبة رقم: ${item.DOC_NO}`);
-                                                                setNotifEmpSearch("");
-                                                            }}
-                                                            title="إرسال تنبيه"
-                                                        >
-                                                            <Bell className="w-4 h-4" />
-                                                        </Button>
+                                                                        setNotifRecipients(initialRecipients);
+                                                                        setIsNotifModalOpen(true);
+                                                                        setNotifMessage(`بخصوص المكاتبة رقم: ${item.DOC_NO}`);
+                                                                        setNotifEmpSearch("");
+                                                                    }}
+                                                                    title="إرسال تنبيه"
+                                                                >
+                                                                    <Bell className="w-4 h-4" />
+                                                                    {(item.NOTIFS_SENT_STR || item.NOTIFS_RECEIVED_STR) && (
+                                                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+                                                                    )}
+                                                                </Button>
+                                                            );
+
+                                                            if (item.NOTIFS_SENT_STR || item.NOTIFS_RECEIVED_STR) {
+                                                                return (
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            {notifButton}
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent className="bg-slate-900 text-white border-slate-800 p-4 rounded-3xl shadow-2xl max-w-xs z-[300]" side="top" sideOffset={10}>
+                                                                            <div className="space-y-4 text-right" dir="rtl">
+                                                                                {item.NOTIFS_RECEIVED_STR && (
+                                                                                    <>
+                                                                                        <div className="flex items-center gap-2 border-b border-indigo-500/30 pb-3">
+                                                                                            <div className="p-1.5 bg-indigo-500/20 rounded-lg">
+                                                                                                <Bell className="w-4 h-4 text-indigo-400" />
+                                                                                            </div>
+                                                                                            <span className="font-black text-sm text-indigo-100">رسائل تنبيه واردة</span>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                                                                                            {item.NOTIFS_RECEIVED_STR.split(' | ').filter(n => n.trim()).map((notif, rIdx) => {
+                                                                                                const parts = notif.split(' : ');
+                                                                                                const nameAndDate = parts[0];
+                                                                                                const msg = parts[1] || '';
+                                                                                                return (
+                                                                                                    <div key={rIdx} className="flex flex-col gap-1 py-0.5 border-b border-slate-700/50 last:border-0 pb-2">
+                                                                                                        <span className="text-xs font-bold tracking-tight text-indigo-300">
+                                                                                                            {nameAndDate}
+                                                                                                        </span>
+                                                                                                        {msg && <span className="text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap">{msg}</span>}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </>
+                                                                                )}
+                                                                                {item.NOTIFS_SENT_STR && (
+                                                                                    <>
+                                                                                        <div className="flex items-center gap-2 border-b border-rose-500/30 pb-3 pt-2">
+                                                                                            <div className="p-1.5 bg-rose-500/20 rounded-lg">
+                                                                                                <Send className="w-4 h-4 text-rose-400" />
+                                                                                            </div>
+                                                                                            <span className="font-black text-sm text-rose-100">رسائل تنبيه مرسلة مني</span>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                                                                                            {item.NOTIFS_SENT_STR.split(' | ').filter(n => n.trim()).map((notif, rIdx) => {
+                                                                                                const parts = notif.split(' : ');
+                                                                                                const nameAndDate = parts[0];
+                                                                                                const msg = parts[1] || '';
+                                                                                                return (
+                                                                                                    <div key={rIdx} className="flex flex-col gap-1 py-0.5 border-b border-slate-700/50 last:border-0 pb-2">
+                                                                                                        <span className="text-xs font-bold tracking-tight text-rose-300">
+                                                                                                            {nameAndDate}
+                                                                                                        </span>
+                                                                                                        {msg && <span className="text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap">{msg}</span>}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                );
+                                                            }
+                                                            return notifButton;
+                                                        })()}
                                                         {item.FILE_NAME && (
                                                             <>
                                                                 <Button
@@ -2191,6 +2178,55 @@ export default function ExportPage() {
                                 <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">المكاتبة المختارة (صادر)</p>
                                 <p className="font-black text-emerald-900 leading-tight text-sm">{selectedDoc?.DOC_NO} — {selectedDoc?.SUBJECT}</p>
                             </div>
+
+                            {/* التنبيهات السابقة (إن وجدت) */}
+                            {(selectedDoc?.NOTIFS_SENT_STR || selectedDoc?.NOTIFS_RECEIVED_STR) && (
+                                <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4 flex flex-col gap-2">
+                                    {selectedDoc?.NOTIFS_RECEIVED_STR && (
+                                        <div className="flex flex-col gap-1.5 pb-2 border-b border-blue-200/50 last:border-0 last:pb-0">
+                                            <div className="flex items-center gap-2">
+                                                <Bell className="w-3.5 h-3.5 text-blue-500" />
+                                                <span className="text-xs font-black text-blue-900">رسائل تنبيه واردة لك</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 pr-5">
+                                                {selectedDoc.NOTIFS_RECEIVED_STR.split(' | ').filter(n => n.trim()).map((notif, rIdx) => {
+                                                    const parts = notif.split(' : ');
+                                                    const nameAndDate = parts[0];
+                                                    const msg = parts[1] || '';
+                                                    return (
+                                                        <div key={rIdx} className="flex flex-col gap-0.5">
+                                                            <span className="text-[11px] font-bold text-blue-800">{nameAndDate}</span>
+                                                            {msg && <span className="text-[11px] text-slate-600 bg-white/50 px-2 py-1 rounded-lg w-fit whitespace-pre-wrap">{msg}</span>}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {selectedDoc?.NOTIFS_SENT_STR && (
+                                        <div className="flex flex-col gap-1.5 pt-2 border-t border-blue-200/50 first:border-0 first:pt-0">
+                                            <div className="flex items-center gap-2">
+                                                <Send className="w-3.5 h-3.5 text-indigo-500" />
+                                                <span className="text-xs font-black text-indigo-900">رسائل تنبيه مرسلة منك</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 pr-5">
+                                                {selectedDoc.NOTIFS_SENT_STR.split(' | ').filter(n => n.trim()).map((notif, rIdx) => {
+                                                    const parts = notif.split(' : ');
+                                                    const nameAndDate = parts[0];
+                                                    const msg = parts[1] || '';
+                                                    return (
+                                                        <div key={rIdx} className="flex flex-col gap-0.5">
+                                                            <span className="text-[11px] font-bold text-indigo-800">{nameAndDate}</span>
+                                                            {msg && <span className="text-[11px] text-slate-600 bg-white/50 px-2 py-1 rounded-lg w-fit whitespace-pre-wrap">{msg}</span>}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
 
                             {/* اختيار المستلمين */}
                             <div className="space-y-3">

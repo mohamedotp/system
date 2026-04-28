@@ -223,7 +223,7 @@ export default function ImportPage() {
                     }
 
                     // استعادة حالة الفلاتر بعد تحميل المستخدم
-                    const loadedFilters = loadFilterState();
+                    const loadedFilters = checkUrlParams();
                     setIsFiltersLoaded(true);
 
                     // ✅ إذا كان هناك بحث قادم من الرابط، استدعِ البيانات فوراً
@@ -233,7 +233,7 @@ export default function ImportPage() {
                 }
             } catch (err) {
                 console.error("Error fetching user session:", err);
-                const loadedFilters = loadFilterState();
+                const loadedFilters = checkUrlParams();
                 setIsFiltersLoaded(true);
                 if (loadedFilters && (loadedFilters.searchQuery || loadedFilters.search)) {
                     fetchData(loadedFilters);
@@ -245,32 +245,7 @@ export default function ImportPage() {
         fetchEmployees(); // جلب الموظفين عند تحميل الصفحة لضمان عمل التنبيهات السريعة
     }, []);
 
-    // حفظ الفلاتر تلقائياً عند تغيير أي منها (فقط بعد التحميل الأول)
-    useEffect(() => {
-        if (isFiltersLoaded) {
-            saveFilterState();
-        }
-    }, [fromDate, toDate, searchQuery, incoming, internal, answered, pending, allPending, isFiltersLoaded]);
-
-
-    // دالة لحفظ حالة الفلاتر
-    const saveFilterState = () => {
-        const filterState = {
-            fromDate,
-            toDate,
-            searchQuery,
-            incoming,
-            internal,
-            answered,
-            pending,
-            allPending
-        };
-        localStorage.setItem('importPageFilters_v2', JSON.stringify(filterState));
-    };
-
-    // دالة لاستعادة حالة الفلاتر
-    const loadFilterState = () => {
-        // 1. التحقق أولاً من وجود بحث في الرابط (Query Param)
+    const checkUrlParams = () => {
         if (typeof window !== "undefined") {
             const urlParams = new URLSearchParams(window.location.search);
             const urlSearch = urlParams.get("search");
@@ -281,12 +256,11 @@ export default function ImportPage() {
                 setSearchQuery(urlSearch);
                 setIsExactSearch(urlIsExact);
 
-                // إذا كان في تاريخ مرسل، استخدمه كفلتر بداية ونهاية
                 if (urlDate) {
                     setFromDate(urlDate);
                     setToDate(urlDate);
                 } else {
-                    setFromDate(""); // تصفير التاريخ لضمان العثور على المكاتبة مهما كان تاريخها
+                    setFromDate("");
                     setToDate("");
                 }
 
@@ -306,26 +280,6 @@ export default function ImportPage() {
                     pending: false,
                     allPending: false
                 };
-            }
-        }
-
-        const savedFilters = localStorage.getItem('importPageFilters_v2');
-        if (savedFilters) {
-            try {
-                const parsed = JSON.parse(savedFilters);
-                setFromDate(parsed.fromDate !== undefined ? parsed.fromDate : "");
-                setToDate(parsed.toDate !== undefined ? parsed.toDate : "");
-                setSearchQuery(parsed.searchQuery || "");
-                setIncoming(parsed.incoming || false);
-                setInternal(parsed.internal || false);
-                setAnswered(parsed.answered || false);
-                setPending(parsed.pending !== undefined ? parsed.pending : true);
-                setAllPending(parsed.allPending || false);
-
-                // إرجاع الفلاتر المحملة لاستخدامها في fetchData
-                return parsed;
-            } catch (error) {
-                console.error("Error loading filters:", error);
             }
         }
         return null;
@@ -754,34 +708,7 @@ export default function ImportPage() {
             setLoading(false);
         }
     };
-    const resetFilters = () => {
-        const defaultFilters = {
-            fromDate: "",
-            toDate: "",
-            searchQuery: "",
-            incoming: false,
-            internal: false,
-            answered: false,
-            pending: true,
-            allPending: false
-        };
 
-        setFromDate("");
-        setToDate("");
-        setSearchQuery("");
-        setIncoming(false);
-        setInternal(false);
-        setAnswered(false);
-        setPending(true);
-        setAllPending(false);
-        setIsExactSearch(false);
-
-        // حذف الفلاتر المحفوظة
-        localStorage.removeItem('importPageFilters_v2');
-
-        // جلب البيانات بدون فلاتر
-        fetchData(defaultFilters);
-    };
     const handleSenderClick = (name) => {
         setSearchQuery(name);
 
@@ -1100,14 +1027,7 @@ export default function ImportPage() {
                                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                                         <span className="font-bold">تطبيق</span>
                                     </Button>
-                                    <Button
-                                        onClick={resetFilters}
-                                        variant="outline"
-                                        className="h-11 px-6 border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-xl transition-all duration-300 group"
-                                    >
-                                        <X className="w-4 h-4 ml-2 group-hover:rotate-90 transition-transform duration-300" />
-                                        <span className="font-medium">إعادة تعيين</span>
-                                    </Button>
+
                                 </form>
                             </div>
 
@@ -1443,43 +1363,115 @@ export default function ImportPage() {
                                                         >
                                                             <ArrowUpDown className="w-4 h-4 rotate-90" />
                                                         </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-9 w-9 p-0 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedDoc(item);
+                                                        {(() => {
+                                                            const notifButton = (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-9 w-9 p-0 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors relative"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedDoc(item);
 
-                                                                // استخراج المرسل الأصلي (PLACE_C)
-                                                                const senderEmp = employees.find(emp =>
-                                                                    emp.EMP_NUM.toString() === item.PLACE_C?.toString()
+                                                                        // استخراج المرسل الأصلي (PLACE_C)
+                                                                        const senderEmp = employees.find(emp =>
+                                                                            emp.EMP_NUM.toString() === item.PLACE_C?.toString()
+                                                                        );
+
+                                                                        // استخراج المحول إليهم سابقاً من حقل MY_TRANSFERS
+                                                                        let previousRecipients = [];
+                                                                        if (item.MY_TRANSFERS) {
+                                                                            // استخراج الأرقام بين الأقواس: "الاسم (1234)" -> "1234"
+                                                                            const codes = item.MY_TRANSFERS.match(/\(\d+\)/g) || [];
+                                                                            const cleanCodes = codes.map(c => c.replace(/\(|\)/g, ''));
+                                                                            previousRecipients = employees.filter(emp =>
+                                                                                cleanCodes.includes(emp.EMP_NUM.toString())
+                                                                            );
+                                                                        }
+
+                                                                        // دمج بدون تكرار
+                                                                        const allInitial = [...(senderEmp ? [senderEmp] : []), ...previousRecipients];
+                                                                        const uniqueInitial = allInitial.filter((v, i, a) => a.findIndex(t => t.EMP_NUM === v.EMP_NUM) === i);
+
+                                                                        setNotifRecipients(uniqueInitial);
+                                                                        setIsNotifModalOpen(true);
+                                                                        setNotifMessage(`بخصوص المكاتبة رقم: ${item.DOC_NO}`);
+                                                                        setNotifEmpSearch("");
+                                                                    }}
+                                                                    title="إرسال تنبيه"
+                                                                >
+                                                                    <Bell className="w-4 h-4" />
+                                                                    {(item.NOTIFS_SENT_STR || item.NOTIFS_RECEIVED_STR) && (
+                                                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+                                                                    )}
+                                                                </Button>
+                                                            );
+
+                                                            if (item.NOTIFS_SENT_STR || item.NOTIFS_RECEIVED_STR) {
+                                                                return (
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            {notifButton}
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent className="bg-slate-900 text-white border-slate-800 p-4 rounded-3xl shadow-2xl max-w-xs z-[300]" side="top" sideOffset={10}>
+                                                                            <div className="space-y-4 text-right" dir="rtl">
+                                                                                {item.NOTIFS_RECEIVED_STR && (
+                                                                                    <>
+                                                                                        <div className="flex items-center gap-2 border-b border-indigo-500/30 pb-3">
+                                                                                            <div className="p-1.5 bg-indigo-500/20 rounded-lg">
+                                                                                                <Bell className="w-4 h-4 text-indigo-400" />
+                                                                                            </div>
+                                                                                            <span className="font-black text-sm text-indigo-100">رسائل تنبيه واردة</span>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                                                                                            {item.NOTIFS_RECEIVED_STR.split(' | ').filter(n => n.trim()).map((notif, rIdx) => {
+                                                                                                const parts = notif.split(' : ');
+                                                                                                const nameAndDate = parts[0];
+                                                                                                const msg = parts[1] || '';
+                                                                                                return (
+                                                                                                    <div key={rIdx} className="flex flex-col gap-1 py-0.5 border-b border-slate-700/50 last:border-0 pb-2">
+                                                                                                        <span className="text-xs font-bold tracking-tight text-indigo-300">
+                                                                                                            {nameAndDate}
+                                                                                                        </span>
+                                                                                                        {msg && <span className="text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap">{msg}</span>}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </>
+                                                                                )}
+                                                                                {item.NOTIFS_SENT_STR && (
+                                                                                    <>
+                                                                                        <div className="flex items-center gap-2 border-b border-rose-500/30 pb-3 pt-2">
+                                                                                            <div className="p-1.5 bg-rose-500/20 rounded-lg">
+                                                                                                <Send className="w-4 h-4 text-rose-400" />
+                                                                                            </div>
+                                                                                            <span className="font-black text-sm text-rose-100">رسائل تنبيه مرسلة مني</span>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                                                                                            {item.NOTIFS_SENT_STR.split(' | ').filter(n => n.trim()).map((notif, rIdx) => {
+                                                                                                const parts = notif.split(' : ');
+                                                                                                const nameAndDate = parts[0];
+                                                                                                const msg = parts[1] || '';
+                                                                                                return (
+                                                                                                    <div key={rIdx} className="flex flex-col gap-1 py-0.5 border-b border-slate-700/50 last:border-0 pb-2">
+                                                                                                        <span className="text-xs font-bold tracking-tight text-rose-300">
+                                                                                                            {nameAndDate}
+                                                                                                        </span>
+                                                                                                        {msg && <span className="text-[10px] text-slate-300 leading-relaxed whitespace-pre-wrap">{msg}</span>}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
                                                                 );
-
-                                                                // استخراج المحول إليهم سابقاً من حقل MY_TRANSFERS
-                                                                let previousRecipients = [];
-                                                                if (item.MY_TRANSFERS) {
-                                                                    // استخراج الأرقام بين الأقواس: "الاسم (1234)" -> "1234"
-                                                                    const codes = item.MY_TRANSFERS.match(/\(\d+\)/g) || [];
-                                                                    const cleanCodes = codes.map(c => c.replace(/\(|\)/g, ''));
-                                                                    previousRecipients = employees.filter(emp =>
-                                                                        cleanCodes.includes(emp.EMP_NUM.toString())
-                                                                    );
-                                                                }
-
-                                                                // دمج بدون تكرار
-                                                                const allInitial = [...(senderEmp ? [senderEmp] : []), ...previousRecipients];
-                                                                const uniqueInitial = allInitial.filter((v, i, a) => a.findIndex(t => t.EMP_NUM === v.EMP_NUM) === i);
-
-                                                                setNotifRecipients(uniqueInitial);
-                                                                setIsNotifModalOpen(true);
-                                                                setNotifMessage(`بخصوص المكاتبة رقم: ${item.DOC_NO}`);
-                                                                setNotifEmpSearch("");
-                                                            }}
-                                                            title="إرسال تنبيه"
-                                                        >
-                                                            <Bell className="w-4 h-4" />
-                                                        </Button>
+                                                            }
+                                                            return notifButton;
+                                                        })()}
                                                         {!item.ANSERED && (
                                                             <Button
                                                                 size="sm"
@@ -2554,6 +2546,54 @@ export default function ImportPage() {
                                     <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest">المكاتبة المختارة</p>
                                     <p className="font-black text-blue-900">{selectedDoc?.DOC_NO} - {selectedDoc?.SUBJECT}</p>
                                 </div>
+
+                                {/* إشعارات سابقة للمكاتبة */}
+                                {(selectedDoc?.NOTIFS_RECEIVED_STR || selectedDoc?.NOTIFS_SENT_STR) && (
+                                    <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 flex flex-col gap-4 max-h-[200px] overflow-y-auto custom-scrollbar">
+                                        {selectedDoc?.NOTIFS_RECEIVED_STR && (
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center gap-2 border-b border-indigo-200 pb-2">
+                                                    <Bell className="w-4 h-4 text-indigo-500" />
+                                                    <span className="font-black text-xs text-indigo-700">رسائل تنبيه واردة بخصوص هذه المكاتبة</span>
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    {selectedDoc.NOTIFS_RECEIVED_STR.split(' | ').filter(n => n.trim()).map((notif, idx) => {
+                                                        const parts = notif.split(' : ');
+                                                        const nameAndDate = parts[0];
+                                                        const msg = parts[1] || '';
+                                                        return (
+                                                            <div key={idx} className="bg-white p-3 rounded-xl border border-indigo-50 flex flex-col gap-1">
+                                                                <span className="text-xs font-bold text-indigo-900">{nameAndDate}</span>
+                                                                {msg && <span className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{msg}</span>}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {selectedDoc?.NOTIFS_SENT_STR && (
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center gap-2 border-b border-rose-200 pb-2">
+                                                    <Send className="w-4 h-4 text-rose-500" />
+                                                    <span className="font-black text-xs text-rose-700">رسائل تنبيه أرسلتها بخصوص هذه المكاتبة</span>
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    {selectedDoc.NOTIFS_SENT_STR.split(' | ').filter(n => n.trim()).map((notif, idx) => {
+                                                        const parts = notif.split(' : ');
+                                                        const nameAndDate = parts[0];
+                                                        const msg = parts[1] || '';
+                                                        return (
+                                                            <div key={idx} className="bg-white p-3 rounded-xl border border-rose-50 flex flex-col gap-1">
+                                                                <span className="text-xs font-bold text-rose-900">{nameAndDate}</span>
+                                                                {msg && <span className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{msg}</span>}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* حقل البحث عن الموظفين */}
                                 <div className="space-y-4">

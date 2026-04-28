@@ -83,7 +83,27 @@ export async function GET(req) {
                    (SELECT COUNT(*)
                     FROM RECIP_GEHA_NEW r_count
                     WHERE r_count.MAIN_DOC_NO = r.DOC_NO 
-                    AND r_count.PLACE_C = :empNum) as MY_TRANSFERS_COUNT
+                    AND r_count.PLACE_C = :empNum) as MY_TRANSFERS_COUNT,
+                    
+                   /* 4. إشعارات التنبيه التي أرسلتها */
+                   (SELECT SUBSTR(LISTAGG(
+                        e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC), 1, 3900)
+                    FROM SYSTEM_NOTIFICATIONS n_sent
+                    JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
+                    WHERE n_sent.DOC_NO = r.DOC_NO 
+                    AND n_sent.SENDER_ID = :empNum) as NOTIFS_SENT_STR,
+
+                   /* 5. إشعارات التنبيه التي استلمتها */
+                   (SELECT SUBSTR(LISTAGG(
+                        e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
+                        ' | '
+                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC), 1, 3900)
+                    FROM SYSTEM_NOTIFICATIONS n_rec
+                    JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
+                    WHERE n_rec.DOC_NO = r.DOC_NO 
+                    AND n_rec.RECEIVER_ID = :empNum) as NOTIFS_RECEIVED_STR
                    
             FROM RECIP_GEHA_NEW r
             LEFT JOIN DOC_DATA_NEW d ON r.DOC_NO = d.DOC_NO

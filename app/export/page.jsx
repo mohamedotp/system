@@ -54,6 +54,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 
 // قائمة المستخدمين الذين تظهر لهم "النافذة الخاصة" (التحويل الإداري بالأرزق)
@@ -965,7 +971,8 @@ export default function ExportPage() {
     const recipientsCount = Object.keys(recipientsStats).length;
 
     return (
-        <div className="min-h-screen bg-slate-50/50 pb-12 rtl">
+        <TooltipProvider>
+            <div className="min-h-screen bg-slate-50/50 pb-12 rtl">
             <div className="bg-white border-b shadow-sm sticky top-[65px] z-30">
                 <div className="max-w-6xl mx-auto px-6 py-4">
                     <div className="flex flex-col gap-6">
@@ -2548,5 +2555,6 @@ export default function ExportPage() {
                 </div>
             )}
         </div>
+    </TooltipProvider>
     );
 }

@@ -47,10 +47,7 @@ export async function GET(req) {
         // بناء الـ Query بناءً على الصلاحية
         // ==========================================
         const notifsSentSubquery = hasSalaryAccess
-            ? `MAX((SELECT LISTAGG(
-                        e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE, 
-                        ' | ' ON OVERFLOW TRUNCATE
-                    ) WITHIN GROUP (ORDER BY n_sent.CREATED_AT DESC)
+            ? `MAX((SELECT RTRIM(XMLAGG(XMLELEMENT(E, e_notif_r.EMP_NAME || ' (' || TO_CHAR(n_sent.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_sent.MESSAGE || ' | ') ORDER BY n_sent.CREATED_AT DESC).GETCLOBVAL(), ' | ')
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_sent
                     JOIN EMP_DOC e_notif_r ON n_sent.RECEIVER_ID = e_notif_r.EMP_NUM
                     WHERE n_sent.DOC_NO = r.DOC_NO 
@@ -58,10 +55,7 @@ export async function GET(req) {
             : `NULL as NOTIFS_SENT_STR`;
 
         const notifsReceivedSubquery = hasSalaryAccess
-            ? `MAX((SELECT LISTAGG(
-                        e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE, 
-                        ' | ' ON OVERFLOW TRUNCATE
-                    ) WITHIN GROUP (ORDER BY n_rec.CREATED_AT DESC)
+            ? `MAX((SELECT RTRIM(XMLAGG(XMLELEMENT(E, e_notif_s.EMP_NAME || ' (' || TO_CHAR(n_rec.CREATED_AT, 'DD/MM HH24:MI') || ') : ' || n_rec.MESSAGE || ' | ') ORDER BY n_rec.CREATED_AT DESC).GETCLOBVAL(), ' | ')
                     FROM SALARY.SYSTEM_NOTIFICATIONS n_rec
                     JOIN EMP_DOC e_notif_s ON n_rec.SENDER_ID = e_notif_s.EMP_NUM
                     WHERE n_rec.DOC_NO = r.DOC_NO 
@@ -73,10 +67,10 @@ export async function GET(req) {
                    MAX(r.DOC_DATE) as DOC_DATE,
                    TO_CHAR(MAX(r.DOC_DATE), 'YYYY-MM-DD HH24:MI') as DOC_DATE_STR,
                    MAX(d.SUBJECT) as SUBJECT,
-                   LISTAGG(eg.EMP_NAME, ' | ' ON OVERFLOW TRUNCATE) WITHIN GROUP (ORDER BY eg.EMP_NAME) as GEHA_NAME,
-                   LISTAGG(eg.SEC_N, ' | ' ON OVERFLOW TRUNCATE) WITHIN GROUP (ORDER BY eg.EMP_NAME) as GEHA_SEC,
-                   LISTAGG(NVL(r.SEEN_FLAG, 0), ' | ' ON OVERFLOW TRUNCATE) WITHIN GROUP (ORDER BY eg.EMP_NAME) as GEHA_SEEN_FLAGS,
-                   LISTAGG(NVL(TO_CHAR(r.SEEN_DATE, 'YYYY-MM-DD HH24:MI'), 'N/A'), ' | ' ON OVERFLOW TRUNCATE) WITHIN GROUP (ORDER BY eg.EMP_NAME) as GEHA_SEEN_DATES,
+                   RTRIM(XMLAGG(XMLELEMENT(E, eg.EMP_NAME || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL(), ' | ') as GEHA_NAME,
+                   RTRIM(XMLAGG(XMLELEMENT(E, eg.SEC_N || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL(), ' | ') as GEHA_SEC,
+                   RTRIM(XMLAGG(XMLELEMENT(E, NVL(r.SEEN_FLAG, 0) || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL(), ' | ') as GEHA_SEEN_FLAGS,
+                   RTRIM(XMLAGG(XMLELEMENT(E, NVL(TO_CHAR(r.SEEN_DATE, 'YYYY-MM-DD HH24:MI'), 'N/A') || ' | ') ORDER BY eg.EMP_NAME).GETCLOBVAL(), ' | ') as GEHA_SEEN_DATES,
                    MAX(a.ANSERED_DESC) as ANSERED_DESC,
                    MAX(st.SITUATION_DESC) as SITUATION_DESC,
                    MAX(dk.DOC_DESC_A) as DOC_DESC_A,

@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import Image from "next/image";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Users,
   ChevronDown,
   Wallet,
@@ -304,7 +310,7 @@ export default function Navbar() {
   };
 
   return (
-    <>
+    <TooltipProvider>
       <nav className="flex items-center justify-between px-4 md:px-8 py-3 bg-slate-950 border-b border-slate-800 shadow-xl sticky top-0 z-50">
         <div className="flex items-center gap-4 md:gap-8">
           <Button
@@ -318,13 +324,14 @@ export default function Navbar() {
 
           <Link href="/" className="flex items-center gap-2 group">
             <div className="relative w-10 h-10 md:w-12 md:h-12 bg-white/90 rounded-lg p-1 shadow-lg">
-              <Image
-                src="/logo.png"
-                alt="شعار المنشأة"
-                fill
-                className="object-contain"
-                priority
-              />
+                <Image
+                  src="/logo.png"
+                  alt="شعار المنشأة"
+                  fill
+                  sizes="(max-width: 768px) 40px, 48px"
+                  className="object-contain"
+                  priority
+                />
             </div>
           </Link>
 

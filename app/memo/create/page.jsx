@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -71,7 +71,8 @@ export default function CreateMemoPage() {
 
     // --- Form fields ---
     const [subject, setSubject] = useState("");
-    const [attachments, setAttachments] = useState([]);
+    const [attachments, setAttachments] = useState([]);         // مرفقات جديدة (ملفات محلية)
+    const [savedAttachments, setSavedAttachments] = useState([]); // مرفقات محفوظة في DB
     const [docType, setDocType] = useState("");
     const [kindSearchTerm, setKindSearchTerm] = useState("");
     const [selectedEmps, setSelectedEmps] = useState([]);
@@ -160,6 +161,15 @@ export default function CreateMemoPage() {
             const json = await res.json();
             if (json.success) setDrafts(json.drafts || []);
         } catch (e) { } finally { setFetchingDrafts(false); }
+    };
+
+    const fetchSavedAttachments = async (dNo) => {
+        if (!dNo) return;
+        try {
+            const res = await fetch(`/api/memo/attachments?docNo=${dNo}`);
+            const json = await res.json();
+            if (json.success) setSavedAttachments(json.attachments || []);
+        } catch (e) { setSavedAttachments([]); }
     };
 
     const handleDeleteDraft = async (dNo) => {
@@ -372,31 +382,63 @@ export default function CreateMemoPage() {
     /* ── SAVE AS DRAFT ── */
     const handleSaveAsDraft = async () => {
         if (!subject.trim()) { toast.error("برجاء كتابة موضوع المذكرة أولاً"); return; }
+        // اشتراط النوع فقط لو المكاتبة لم تُنشأ بعد
+        if (!docType && (!creationDone || !docNo)) { toast.error("برجاء اختيار نوع المكاتبة أولاً"); return; }
         setSavingDraft(true);
         try {
-            // لو المذكرة اتعملت بالفعل (بعد الاعتماد مثلاً) روح للسجل مباشرة
-            if (creationDone && docNo) {
-                toast.success("✅ المذكرة محفوظة بالفعل كمسودة");
-                setTimeout(() => router.push("/import"), 1200);
-                return;
+            let currentDocNo = docNo;
+            let currentPath = savedPath;
+
+            // لو المذكرة لم تُنشأ بعد → أنشئها الآن بالبيانات الصحيحة
+            if (!creationDone || !currentDocNo) {
+                const res = await fetch("/api/memo/create", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        docType: parseInt(docType),
+                        subject,
+                        recipientEmpNums: selectedEmps.map(e => e.EMP_NUM),
+                        vacationEmpNo,
+                        fromDate,
+                        toDate
+                    })
+                });
+                const json = await res.json();
+                if (!json.success) {
+                    toast.error(json.error || "فشل حفظ المسودة");
+                    return;
+                }
+                currentDocNo = json.docNo;
+                currentPath = json.generatedPath;
+                setSavedPath(currentPath);
+                setDocNo(currentDocNo);
+                setCreationDone(true);
             }
-            const res = await fetch("/api/memo/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    docType: docType || 1,
-                    subject,
-                    recipientEmpNums: [],
-                })
-            });
-            const json = await res.json();
-            if (json.success) {
-                toast.success("✅ تم حفظ المذكرة كمسودة بنجاح");
-                handleOpenFile(json.generatedPath);
-                setTimeout(() => router.push("/import"), 1800);
-            } else {
-                toast.error(json.error || "فشل حفظ المسودة");
+
+            // رفع المرفقات إذا كانت موجودة
+            if (attachments && attachments.length > 0) {
+                try {
+                    const formData = new FormData();
+                    formData.append("docNo", currentDocNo);
+                    attachments.forEach(item => {
+                        formData.append("files", item.file);
+                        formData.append("descriptions", item.desc || item.file.name);
+                    });
+                    const uploadRes = await fetch("/api/memo/upload", { method: "POST", body: formData });
+                    const uploadJson = await uploadRes.json();
+                    if (uploadJson.success) {
+                        setAttachments([]);
+                    } else {
+                        toast.warning("تم حفظ المسودة لكن فشل رفع المرفقات: " + (uploadJson.error || ""));
+                    }
+                } catch (uploadErr) {
+                    toast.warning("تم حفظ المسودة لكن حدث خطأ في رفع المرفقات");
+                }
             }
+
+            toast.success(`✅ تم حفظ المذكرة كمسودة بنجاح — رقم: ${currentDocNo}`);
+            // نوجّه لصفحة إنشاء مكاتبة حتى يرى المستخدم المسودة عند الضغط على "من المسودة"
+            setTimeout(() => router.push("/memo/create"), 1500);
         } catch (err) {
             toast.error("حدث خطأ أثناء الاتصال بالسيرفر");
         } finally {
@@ -421,7 +463,7 @@ export default function CreateMemoPage() {
                     body: JSON.stringify({
                         docType,
                         subject,
-                        recipientEmpNums: [],
+                        recipientEmpNums: selectedEmps.map(e => e.EMP_NUM),
                         vacationEmpNo,
                         fromDate,
                         toDate
@@ -497,7 +539,7 @@ export default function CreateMemoPage() {
         }
     };
 
-    /* ── APPROVE: يفتح الـ PDF فقط (بعد فتح الورد) ── */
+    /* ── APPROVE: يحفظ المرفقات والمستلمين ثم يفتح الـ PDF ── */
     const handleApprove = async () => {
         if (!isWordOpened) {
             toast.error("برجاء فتح الملف في Word وتعديله أولاً قبل الاعتماد");
@@ -509,7 +551,29 @@ export default function CreateMemoPage() {
         }
         setIsApproving(true);
         try {
-            // فتح الـ PDF في تاب جديد لوضع الإمضاء
+            // ① رفع المرفقات إذا كانت موجودة ولم يتم رفعها بعد
+            if (attachments && attachments.length > 0) {
+                try {
+                    const formData = new FormData();
+                    formData.append("docNo", docNo);
+                    attachments.forEach(item => {
+                        formData.append("files", item.file);
+                        formData.append("descriptions", item.desc || item.file.name);
+                    });
+                    const uploadRes = await fetch("/api/memo/upload", { method: "POST", body: formData });
+                    const uploadJson = await uploadRes.json();
+                    if (uploadJson.success) {
+                        setAttachments([]);
+                        toast.success("✅ تم رفع المرفقات بنجاح");
+                    } else {
+                        toast.warning("تحذير: فشل رفع المرفقات — " + (uploadJson.error || ""));
+                    }
+                } catch (uploadErr) {
+                    toast.warning("تحذير: حدث خطأ في رفع المرفقات");
+                }
+            }
+
+            // ② فتح الـ PDF في تاب جديد لوضع الإمضاء
             await openPdfForSigning(savedPath, docNo);
             setIsApproved(true);
             toast.success(`✅ تم اعتماد المذكرة رقم ${docNo} — يمكنك إرسالها أو تركها كمسودة`);
@@ -749,9 +813,30 @@ export default function CreateMemoPage() {
                                                     setDocNo(draft.docNo);
                                                     setSavedPath(draft.fileName);
                                                     setCreationDone(true);
-                                                    // المسودة عندها ملف Word موجود بالفعل → فعّل زرار الاعتماد مباشرة
                                                     setIsWordOpened(true);
                                                     setIsApproved(false);
+                                                    setSavedAttachments([]);
+                                                    fetchSavedAttachments(draft.docNo);
+
+                                                    // ✅ استعادة المستلم المحفوظ (EMP_NO) من قائمة الموظفين
+                                                    if (draft.empNo) {
+                                                        const matchEmp = employees.find(e =>
+                                                            String(e.EMP_NUM).replace(/^0+/, '') === String(draft.empNo).replace(/^0+/, '')
+                                                        );
+                                                        if (matchEmp && String(matchEmp.EMP_NUM).replace(/^0+/, '') !== String(user?.empNum || '').replace(/^0+/, '')) {
+                                                            // الموظف المستلم ليس المرسل نفسه → أعد تعيينه
+                                                            setSelectedEmps([{
+                                                                ...matchEmp,
+                                                                customSituation: situations.length > 0
+                                                                    ? situations[0].SITUATION_C.toString()
+                                                                    : "7"
+                                                            }]);
+                                                        } else {
+                                                            setSelectedEmps([]);
+                                                        }
+                                                    } else {
+                                                        setSelectedEmps([]);
+                                                    }
                                                 }}
                                                 className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all group
                                                     ${selectedDraft?.docNo === draft.docNo
@@ -905,6 +990,25 @@ export default function CreateMemoPage() {
                                 }}
                             />
                         </label>
+
+                        {/* مرفقات محفوظة مسبقاً في السيرفر */}
+                        {savedAttachments.length > 0 && (
+                            <div className="space-y-2 mb-3">
+                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">مرفقات محفوظة ({savedAttachments.length})</p>
+                                {savedAttachments.map((att, idx) => (
+                                    <div key={idx} className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                                            <File className="w-5 h-5 text-emerald-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-black text-slate-700 truncate">{att.name}</p>
+                                            {att.desc && <p className="text-[10px] text-slate-400 font-bold truncate">{att.desc}</p>}
+                                        </div>
+                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">محفوظ ✓</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         {attachments.length > 0 && (
                             <div className="space-y-2 mt-3">

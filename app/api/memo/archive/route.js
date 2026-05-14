@@ -160,8 +160,26 @@ export async function POST(req) {
         await connection.commit();
 
         // 4. استراتيجية التحويل بعد الانتهاء من قواعد البيانات
-        // هنا قمنا بحذف الـ Powershell واستدعاء API التعديل مباشرة لحل مشكلة الأبعاد بشكل قاطع ومطابق تماماً
+        // ✅ إذا كان ملف الـ PDF موجود وأحدث من ملف الـ Word، هذا يعني أن المستخدم وقّع عليه
+        // في هذه الحالة نتخطى الـ conversion للحفاظ على التوقيع/السيجنتشر
         try {
+            let skipConversion = false;
+
+            if (fs.existsSync(pdfPathOnDisk) && fs.existsSync(actualWordPath)) {
+                const pdfStat = fs.statSync(pdfPathOnDisk);
+                const wordStat = fs.statSync(actualWordPath);
+                // لو الـ PDF تم تعديله بعد الـ Word بأكثر من ثانية واحدة → تم التوقيع عليه
+                if (pdfStat.mtimeMs > wordStat.mtimeMs + 1000) {
+                    skipConversion = true;
+                    console.log(`[ARCHIVE] PDF is newer than Word for docNo=${docNo} → skipping re-conversion to preserve signature`);
+                }
+            }
+
+            if (skipConversion) {
+                // الـ PDF فيه توقيع → نبعت كما هو
+                return NextResponse.json({ success: true, pdfPath: pdfPathOnDisk });
+            }
+
             const protocol = req.headers.get('x-forwarded-proto') || 'http';
             const host = req.headers.get('host') || 'localhost:3000';
             const baseUrl = `${protocol}://${host}`;

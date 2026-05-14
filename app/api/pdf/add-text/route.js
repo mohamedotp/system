@@ -78,13 +78,12 @@ function reshapeArabic(text) {
         reshaped += ARABIC_FORMS[char][formIndex];
     }
 
-    // ملاحظة: قمت بإلغاء العكس هنا مؤقتاً للتجربة إذا كان نظام الخط يدعم الـ RTL
-    // إذا ظهرت الحروف صحيحة ولكن الترتيب مقلوب، سنقوم بتفعيله مجدداً
+   
     return reshaped;
 }
 
 export async function POST(request) {
-    let connection; // تعريف المتغير لاستخدامه في finally
+    let connection; 
     try {
         const session = await getSession();
         if (!session) {
@@ -114,7 +113,7 @@ export async function POST(request) {
             );
         }
 
-        const backupPath = decentPdfPath + ".bak";
+        const backupPath = decentPdfPath.replace(/\.pdf$/i, "") + ".bak";
         if (!fs.existsSync(backupPath)) {
             fs.copyFileSync(decentPdfPath, backupPath);
         }
@@ -125,7 +124,6 @@ export async function POST(request) {
 
         const pages = pdfDoc.getPages();
 
-        // تحميل الخط (كما هو)
         let arabicFont;
         const fontPath = path.join(process.cwd(), "public/fonts/Cairo-Regular.ttf");
         try {
@@ -141,17 +139,25 @@ export async function POST(request) {
             arabicFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
         }
 
-        const fontSize = 16;
         console.log(`Processing ${texts.length} text items for PDF: ${decentPdfPath}`);
 
-        // مصفوفة لتخزين بيانات التعديلات لإدراجها في قاعدة البيانات
         const modificationsToInsert = [];
 
         for (const item of texts) {
-            let { text, pageIndex, x, y } = item;
+            let { text, pageIndex, x, y, fontSize: itemFontSize, color: itemColor, bold } = item;
             if (!text) continue;
 
-            // تطبيق التشكيل
+            const fontSize = Math.max(8, Math.min(72, Number(itemFontSize) || 16));
+
+            const hexToRgb = (hex) => {
+                const clean = (hex || '#000000').replace('#', '');
+                const r = parseInt(clean.substring(0, 2), 16) / 255;
+                const g = parseInt(clean.substring(2, 4), 16) / 255;
+                const b = parseInt(clean.substring(4, 6), 16) / 255;
+                return rgb(isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b);
+            };
+            const textColor = hexToRgb(itemColor);
+
             text = reshapeArabic(text);
 
             const targetPage = pages[pageIndex] || pages[0];
@@ -172,15 +178,17 @@ export async function POST(request) {
                 console.log(`[Text Item] "${text}" -> Original(x:${x}, y:${y}), Scaled(x:${finalX.toFixed(2)}, y:${finalY.toFixed(2)}) on Page:${pageIndex}`);
             }
 
+            const textWidth = arabicFont.widthOfTextAtSize(text, fontSize);
+            const rtlX = Math.max(0, finalX - textWidth);
+
             targetPage.drawText(text, {
-                x: finalX,
+                x: rtlX,
                 y: finalY,
                 size: fontSize,
                 font: arabicFont,
-                color: rgb(1, 0, 0),
+                color: textColor,
             });
 
-            // إضافة بيانات هذا النص إلى مصفوفة التعديلات
             modificationsToInsert.push({
                 filePath: decentPdfPath,
                 userEmpNum: session.empNum,
@@ -193,7 +201,6 @@ export async function POST(request) {
             });
         }
 
-        // حفظ الملف المعدل (مع تكرار المحاولة في حالة القفل EBUSY)
         const modifiedPdfBytes = await pdfDoc.save();
 
         let saved = false;
@@ -213,7 +220,6 @@ export async function POST(request) {
         }
         console.log(`Successfully saved ${texts.length} texts to ${decentPdfPath}`);
 
-        // إدراج التعديلات في قاعدة البيانات (معالجة تشتت الجدول والعداد)
         if (modificationsToInsert.length > 0) {
             try {
                 let conn;
@@ -238,7 +244,7 @@ export async function POST(request) {
                     const nextId = await getNextId() || Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
                     const sql = `INSERT INTO ${tableName} (ID, FILE_PATH, USER_EMP_NUM, TYPE, TEXT_CONTENT, PAGE_INDEX, X, Y, DOC_NO, CREATED_AT)
                                  VALUES (:id, :filePath, :userEmpNum, 'text', :textContent, :pageIndex, :x, :y, :docNo, CURRENT_TIMESTAMP)`;
-                    
+
                     // نبعث فقط الحقول المطلوبة لتجنب خطأ ORA-01036
                     const binds = {
                         id: nextId,

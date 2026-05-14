@@ -152,8 +152,8 @@ export async function GET(req) {
                     `;
                     binds.fromDate = fromDate;
                     binds.toDate = toDate;
-                } else if (!search && status !== 'pending') {
-                    // لو مفيش بحث ولا تواريخ، ديفولت اليوم باستثناء المكاتبات غير المردود عليها
+                } else if (!search && status !== 'pending' && status !== 'answered') {
+                    // لو مفيش بحث ولا تواريخ، ديفولت اليوم باستثناء المكاتبات غير المردود عليها أو المردود عليها
                     query += ` AND TRUNC(r.DOC_DATE) = TRUNC(SYSDATE)`;
                 }
             }

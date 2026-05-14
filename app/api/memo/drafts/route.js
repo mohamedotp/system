@@ -16,7 +16,7 @@ export async function GET(req) {
         // جلب المكاتبات التي ليس لها سجلات في RECIP_GEHA_NEW (أي لم يتم إرسالها)
         // ومصنفة أنها من هذا الموظف
         const result = await connection.execute(
-            `SELECT d.DOC_NO, d.SUBJECT, d.DOC_DATE, d.FILE_NAME, d.DOC_TYPE, k.DOC_DESC_A
+            `SELECT d.DOC_NO, d.SUBJECT, d.DOC_DATE, d.FILE_NAME, d.DOC_TYPE, k.DOC_DESC_A, d.EMP_NO
              FROM DOC_DATA_NEW d
              LEFT JOIN DOC_KIND k ON d.DOC_TYPE = k.DOC_KIND
              WHERE (LTRIM(d.PLACE_C, '0') = LTRIM(:currentEmpNum, '0') OR LTRIM(d.EMP_NO, '0') = LTRIM(:currentEmpNum, '0'))
@@ -32,7 +32,8 @@ export async function GET(req) {
             date: row[2],
             fileName: row[3],
             docType: row[4],
-            docTypeDesc: row[5]
+            docTypeDesc: row[5],
+            empNo: row[6]  // المستلم المحفوظ
         }));
 
         return NextResponse.json({ success: true, drafts });

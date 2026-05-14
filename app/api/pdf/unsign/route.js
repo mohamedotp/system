@@ -79,7 +79,7 @@ export async function POST(request) {
         if (!filePath) return NextResponse.json({ success: false, error: "المسار مطلوب" }, { status: 400 });
 
         const decentPdfPath = filePath.trim().replace(/\//g, "\\");
-        const backupPath = decentPdfPath + ".bak";
+        const backupPath = decentPdfPath.replace(/\.pdf$/i, "") + ".bak";
 
         if (!fs.existsSync(backupPath)) {
             return NextResponse.json({ success: false, error: "لا توجد نسخة احتياطية للتراجع عنها" });

@@ -23,9 +23,10 @@ export async function POST(req) {
 
         connection = await getConnection2();
 
-        // 1. معرفة مسار المجلد المخصص للمكاتبة
+        // 1. جلب بيانات المكاتبة (المسار + بيانات الجدول اللازمة لـ ATTACHMENTS)
         const result = await connection.execute(
-            `SELECT FILE_NAME FROM DOC_DATA_NEW WHERE DOC_NO = :docNo`,
+            `SELECT FILE_NAME, DOC_DATE, MAIN_DOC, MAIN_DOC_NO, MAIN_DOC_DATE, PLACE_C, MAIN_DATE
+             FROM DOC_DATA_NEW WHERE DOC_NO = :docNo`,
             { docNo }
         );
 
@@ -33,7 +34,7 @@ export async function POST(req) {
             return NextResponse.json({ success: false, error: "رقم المكاتبة غير صحيح" }, { status: 404 });
         }
 
-        const mainDocPath = result.rows[0][0];
+        const [mainDocPath, docDate, mainDoc, mainDocNo, mainDocDate, placeC, mainDate] = result.rows[0];
 
         if (!mainDocPath) {
             return NextResponse.json({ success: false, error: "لم يتم تحديد مسار للمكاتبة بعد" }, { status: 400 });
@@ -42,7 +43,7 @@ export async function POST(req) {
         const dirPath = path.dirname(mainDocPath);
         const attachmentData = [];
 
-        // 2. حفظ الملفات
+        // 2. حفظ الملفات على الديسك + إدراجها في جدول ATTACHMENTS
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const desc = descriptions[i] || file.name;
@@ -69,11 +70,39 @@ export async function POST(req) {
                     }
                 }
             }
-            attachmentData.push({
-                path: finalPath,
-                desc: desc
-            });
+
+            attachmentData.push({ path: finalPath, desc });
+
+            // ✅ حفظ في جدول ATTACHMENTS حتى تظهر عند فتح المسودة لاحقاً
+            try {
+                await connection.execute(
+                    `INSERT INTO ATTACHMENTS (
+                        DOC_NO, DOC_DATE, MAIN_DOC_NO, MAIN_DOC_DATE, MAIN_DOC,
+                        FILE_PATH, PLACE_C, MAIN_DATE, ATTACH_TYPE, FILE_DESC
+                    ) VALUES (
+                        :docNo, :docDate, :mainDocNo, :mainDocDate, :mainDoc,
+                        :filePath, :placeC, :mainDate, 1, :fileDesc
+                    )`,
+                    {
+                        docNo,
+                        docDate,
+                        mainDocNo: mainDocNo || docNo,
+                        mainDocDate: mainDocDate || docDate,
+                        mainDoc: mainDoc || docNo,
+                        filePath: finalPath,
+                        placeC,
+                        mainDate: mainDate || docDate,
+                        fileDesc: desc
+                    },
+                    { autoCommit: false }
+                );
+            } catch (dbErr) {
+                // لو فشل الإدراج في DB نكمل — الملف محفوظ على الديسك على الأقل
+                console.error(`[UPLOAD] Failed to insert attachment into DB for docNo=${docNo}:`, dbErr.message);
+            }
         }
+
+        await connection.commit();
 
         return NextResponse.json({
             success: true,
@@ -82,6 +111,7 @@ export async function POST(req) {
 
     } catch (err) {
         console.error("Upload Error:", err);
+        if (connection) await connection.rollback().catch(() => {});
         return NextResponse.json({ success: false, error: "فشل رفع الملف: " + err.message }, { status: 500 });
     } finally {
         if (connection) await connection.close();

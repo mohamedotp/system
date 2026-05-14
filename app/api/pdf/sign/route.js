@@ -91,7 +91,7 @@ export async function POST(request) {
         }
 
         // 6. نسخة احتياطية
-        const backupPath = decentPdfPath + ".bak";
+        const backupPath = decentPdfPath.replace(/\.pdf$/i, "") + ".bak";
         if (!fs.existsSync(backupPath)) {
             fs.copyFileSync(decentPdfPath, backupPath);
         }

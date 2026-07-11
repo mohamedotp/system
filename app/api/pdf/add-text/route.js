@@ -219,7 +219,6 @@ export async function POST(request) {
             }
         }
         console.log(`Successfully saved ${texts.length} texts to ${decentPdfPath}`);
-
         if (modificationsToInsert.length > 0) {
             try {
                 let conn;

@@ -48,6 +48,7 @@ const ARABIC_FORMS = {
     'ﻻ': ['\uFEFB', '\uFEFB', '\uFEFC', '\uFEFC'], // Lam-Alif
 };
 
+
 const DONT_CONNECT_TO_NEXT = ['ا', 'د', 'ذ', 'ر', 'ز', 'و', 'أ', 'إ', 'آ', 'ؤ', 'ء', 'ة'];
 
 function reshapeArabic(text) {
@@ -144,7 +145,7 @@ export async function POST(request) {
         const modificationsToInsert = [];
 
         for (const item of texts) {
-            let { text, pageIndex, x, y, fontSize: itemFontSize, color: itemColor, bold } = item;
+            let { text, pageIndex, x, y, fontSize: itemFontSize, color: itemColor, bold, width } = item;
             if (!text) continue;
 
             const fontSize = Math.max(8, Math.min(72, Number(itemFontSize) || 16));
@@ -168,22 +169,32 @@ export async function POST(request) {
 
             let finalX = x;
             let finalY = y;
+            let finalWidth = width || 260;
+            let scaleX = 1;
+            let scaleY = 1;
 
             if (currentViewWidth && currentViewHeight) {
-                const scaleX = actualWidth / currentViewWidth;
-                const scaleY = actualHeight / currentViewHeight;
+                scaleX = actualWidth / currentViewWidth;
+                scaleY = actualHeight / currentViewHeight;
                 finalX = x * scaleX;
                 finalY = y * scaleY;
+                finalWidth = finalWidth * scaleX;
 
                 console.log(`[Text Item] "${text}" -> Original(x:${x}, y:${y}), Scaled(x:${finalX.toFixed(2)}, y:${finalY.toFixed(2)}) on Page:${pageIndex}`);
             }
 
             const textWidth = arabicFont.widthOfTextAtSize(text, fontSize);
-            const rtlX = Math.max(0, finalX - textWidth);
+            // 12px padding in screen coordinate is scaled by scaleX
+            const padding = 12 * scaleX;
+            const rtlX = Math.max(0, finalX + finalWidth - padding - textWidth);
+            
+            // Adjust vertical coordinate (y) to match text baseline inside the container:
+            // Container top padding (12px) + title bar height (22px) + border (2px) = 36px in screen coordinate
+            const rtlY = Math.max(0, finalY - (36 + fontSize * 0.8) * scaleY);
 
             targetPage.drawText(text, {
                 x: rtlX,
-                y: finalY,
+                y: rtlY,
                 size: fontSize,
                 font: arabicFont,
                 color: textColor,

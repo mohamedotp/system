@@ -393,6 +393,7 @@ function PDFViewerContent() {
             const el = document.getElementById(`text-item-${item.id}`);
             const finalX = el ? parseFloat(el.style.left) || item.x : item.x;
             const finalY = el ? parseFloat(el.style.top) || item.y : item.y;
+            const finalWidth = el ? parseFloat(el.style.width) || item.width || 260 : item.width || 260;
 
             // Get the actual page layer dimensions at save time
             const pageEl = document.querySelector(`[data-testid="core__page-layer-${item.pageIndex}"]`);
@@ -405,6 +406,7 @@ function PDFViewerContent() {
                 pageIndex: item.pageIndex,
                 x: finalX,
                 y: currentViewH - finalY,  // Convert browser top-origin → PDF bottom-origin
+                width: finalWidth,
                 viewWidth: currentViewW,
                 viewHeight: currentViewH,
                 fontSize: item.fontSize || 18,

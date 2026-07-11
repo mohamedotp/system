@@ -272,12 +272,16 @@ function PDFViewerContent() {
         const relX = e.clientX - pageRect.left;
         const relY = e.clientY - pageRect.top;
 
+        // Position the editor floating above the double-click point so it doesn't block the view
+        const editorX = Math.max(10, relX - 130);
+        const editorY = Math.max(10, relY - 150);
+
         const newId = Date.now();
         setTextItems(prev => [...prev, {
             id: newId,
             pageIndex,
-            x: relX,
-            y: relY,
+            x: editorX,
+            y: editorY,
             saveX: relX,
             saveY: relY,
             viewWidth: pageRect.width,
@@ -306,6 +310,22 @@ function PDFViewerContent() {
         container.addEventListener('dblclick', handlePageDoubleClick);
         return () => container.removeEventListener('dblclick', handlePageDoubleClick);
     }, [isTextMode, handlePageDoubleClick]);
+
+    // Click outside to deselect active text item
+    useEffect(() => {
+        const handleOutsideClick = (e) => {
+            if (!e.target.closest('[id^="text-item-"]') && 
+                !e.target.closest('[class*="pointer-events-auto"]') &&
+                !e.target.closest('button') && 
+                !e.target.closest('input') && 
+                !e.target.closest('label')) {
+                setSelectedTextId(null);
+                setEditingTextId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, []);
 
     // Manual drag handler for text boxes (works correctly inside portals)
     const startTextDrag = (e, itemId) => {
@@ -390,11 +410,6 @@ function PDFViewerContent() {
         }
 
         const textsPayload = textItems.map(item => {
-            const el = document.getElementById(`text-item-${item.id}`);
-            const finalX = el ? parseFloat(el.style.left) || item.x : item.x;
-            const finalY = el ? parseFloat(el.style.top) || item.y : item.y;
-            const finalWidth = el ? parseFloat(el.style.width) || item.width || 260 : item.width || 260;
-
             // Get the actual page layer dimensions at save time
             const pageEl = document.querySelector(`[data-testid="core__page-layer-${item.pageIndex}"]`);
             const currentViewH = pageEl ? pageEl.getBoundingClientRect().height : item.viewHeight;
@@ -404,9 +419,9 @@ function PDFViewerContent() {
                 id: item.id,
                 text: item.text,
                 pageIndex: item.pageIndex,
-                x: finalX,
-                y: currentViewH - finalY,  // Convert browser top-origin → PDF bottom-origin
-                width: finalWidth,
+                x: item.saveX,
+                y: currentViewH - item.saveY,  // Convert browser top-origin → PDF bottom-origin
+                width: item.width || 260,
                 viewWidth: currentViewW,
                 viewHeight: currentViewH,
                 fontSize: item.fontSize || 18,
@@ -887,139 +902,157 @@ function PDFViewerContent() {
                             const color = item.color || '#000000';
 
                             return createPortal(
-                                <div
-                                    key={item.id}
-                                    id={`text-item-${item.id}`}
-                                    className="absolute z-[5000] pointer-events-auto"
-                                    style={{ left: `${item.x}px`, top: `${item.y}px`, width: `${itemW}px` }}
-                                    onClick={(e) => { e.stopPropagation(); setSelectedTextId(item.id); }}
-                                >
-                                    {/* ── شريط التحكم العلوي ── */}
+                                <>
+                                    {/* ── المعاينة الفعلية للنص في نقطة الضغط (ثابتة لا تتحرك مع تحريك الصندوق) ── */}
                                     <div
-                                        className="w-full bg-blue-600 text-white flex items-center justify-between px-2 py-1 rounded-t-xl cursor-move shadow-lg select-none"
-                                        onMouseDown={(e) => startTextDrag(e, item.id)}
+                                        id={`text-preview-${item.id}`}
+                                        className="absolute pointer-events-auto cursor-pointer whitespace-nowrap select-none"
+                                        style={{
+                                            right: `${pageLayer.getBoundingClientRect().width - item.saveX}px`,
+                                            top: `${item.saveY}px`,
+                                            fontSize: `${fontSize}px`,
+                                            color: color,
+                                            fontWeight: item.bold ? 'bold' : 'normal',
+                                            direction: 'rtl',
+                                            fontFamily: 'Cairo, sans-serif',
+                                            zIndex: 4999
+                                        }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedTextId(item.id);
+                                            setEditingTextId(item.id);
+                                        }}
                                     >
-                                        <div className="flex items-center gap-1">
-                                            <Move className="w-3 h-3 opacity-80" />
-                                            <span className="text-[9px] font-black opacity-80">تحريك</span>
-                                        </div>
-
-                                        {/* أدوات التحكم */}
-                                        <div className="flex items-center gap-1" onMouseDown={e => e.stopPropagation()}>
-                                            {/* حجم الخط */}
-                                            <button
-                                                onClick={e => { e.stopPropagation(); setTextItems(p => p.map(t => t.id === item.id ? { ...t, fontSize: Math.max(8, (t.fontSize || 18) - 2) } : t)); }}
-                                                className="bg-white/20 hover:bg-white/40 rounded px-1 py-0.5 text-[10px] font-black transition-colors"
-                                                title="تصغير الخط"
-                                            >A-</button>
-                                            <span className="text-[9px] font-bold bg-white/10 px-1 rounded min-w-[22px] text-center">{fontSize}</span>
-                                            <button
-                                                onClick={e => { e.stopPropagation(); setTextItems(p => p.map(t => t.id === item.id ? { ...t, fontSize: Math.min(72, (t.fontSize || 18) + 2) } : t)); }}
-                                                className="bg-white/20 hover:bg-white/40 rounded px-1 py-0.5 text-[10px] font-black transition-colors"
-                                                title="تكبير الخط"
-                                            >A+</button>
-
-                                            <div className="w-px h-3 bg-white/30 mx-0.5" />
-
-                                            {/* عريض */}
-                                            <button
-                                                onClick={e => { e.stopPropagation(); setTextItems(p => p.map(t => t.id === item.id ? { ...t, bold: !t.bold } : t)); }}
-                                                className={`rounded px-1 py-0.5 text-[10px] font-black transition-colors ${item.bold ? 'bg-white text-blue-700' : 'bg-white/20 hover:bg-white/40'}`}
-                                                title="عريض"
-                                            ><b>B</b></button>
-
-                                            <div className="w-px h-3 bg-white/30 mx-0.5" />
-
-                                            {/* لون النص */}
-                                            <label title="لون النص" className="cursor-pointer flex items-center" onMouseDown={e => e.stopPropagation()}>
-                                                <div className="w-4 h-4 rounded-full border-2 border-white shadow-inner" style={{ background: color }} />
-                                                <input
-                                                    type="color"
-                                                    value={color}
-                                                    className="absolute opacity-0 w-0 h-0 pointer-events-none"
-                                                    onChange={e => setTextItems(p => p.map(t => t.id === item.id ? { ...t, color: e.target.value } : t))}
-                                                    onClick={e => e.stopPropagation()}
-                                                    ref={el => { if (el) el.addEventListener('click', ev => ev.stopPropagation()); }}
-                                                    style={{ position: 'absolute', opacity: 0, width: '1px', height: '1px' }}
-                                                    id={`color-${item.id}`}
-                                                />
-                                                <span
-                                                    className="text-[9px] font-black opacity-80 mr-0.5 cursor-pointer"
-                                                    onClick={e => { e.stopPropagation(); document.getElementById(`color-${item.id}`)?.click(); }}
-                                                >لون</span>
-                                            </label>
-
-                                            <div className="w-px h-3 bg-white/30 mx-0.5" />
-
-                                            {/* حذف */}
-                                            <button
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClick={(e) => { e.stopPropagation(); setTextItems(prev => prev.filter(t => t.id !== item.id)); if (selectedTextId === item.id) setSelectedTextId(null); }}
-                                                className="bg-white/10 hover:bg-red-500 rounded p-0.5 transition-colors"
-                                                title="حذف"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
+                                        {item.text || <span className="opacity-50 text-xs border border-dashed border-blue-400 bg-white/95 px-1.5 py-0.5 rounded shadow-md">[اكتب هنا]</span>}
                                     </div>
 
-                                    {/* ── منطقة النص ── */}
-                                    <div
-                                        className="relative bg-white border-2 border-blue-500 rounded-b-xl shadow-2xl overflow-hidden"
-                                        style={{ height: `${itemH}px` }}
-                                    >
-                                        {isEditing ? (
-                                            <textarea
-                                                className="w-full h-full bg-transparent outline-none resize-none p-3"
-                                                style={{
-                                                    fontSize: `${fontSize}px`,
-                                                    color: color,
-                                                    fontWeight: item.bold ? 'bold' : 'normal',
-                                                    direction: 'rtl',
-                                                    fontFamily: 'Cairo, sans-serif'
-                                                }}
-                                                autoFocus
-                                                value={item.text}
-                                                placeholder="اكتب هنا..."
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
-                                                    setTextItems(prev => prev.map(t => t.id === item.id ? { ...t, text: value } : t));
-                                                }}
-                                                onKeyDown={(e) => { if (e.key === 'Escape' || (e.key === 'Enter' && e.ctrlKey)) setEditingTextId(null); }}
-                                                onBlur={() => setEditingTextId(null)}
-                                                onClick={e => e.stopPropagation()}
-                                                onMouseDown={e => e.stopPropagation()}
-                                            />
-                                        ) : (
-                                            <div
-                                                className="w-full h-full p-3 cursor-text overflow-auto"
-                                                style={{
-                                                    fontSize: `${fontSize}px`,
-                                                    color: color,
-                                                    fontWeight: item.bold ? 'bold' : 'normal',
-                                                    direction: 'rtl',
-                                                    fontFamily: 'Cairo, sans-serif',
-                                                    whiteSpace: 'pre-wrap',
-                                                    wordBreak: 'break-word'
-                                                }}
-                                                onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(item.id); }}
-                                            >
-                                                {item.text || <span style={{ opacity: 0.35, fontSize: '13px' }}>اضغط مرتين للكتابة...</span>}
-                                            </div>
-                                        )}
-
-                                        {/* ── مقبض resize الزاوية ── */}
+                                    {/* ── صندوق التحرير العائم (يظهر فقط عند التحديد/الكتابة) ── */}
+                                    {isSelected && (
                                         <div
-                                            className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-10 flex items-end justify-end pb-0.5 pr-0.5"
-                                            onMouseDown={(e) => startTextResize(e, item.id)}
-                                            title="اسحب لتغيير الحجم"
+                                            id={`text-item-${item.id}`}
+                                            className="absolute z-[5000] pointer-events-auto shadow-2xl rounded-xl"
+                                            style={{ left: `${item.x}px`, top: `${item.y}px`, width: `${itemW}px` }}
+                                            onClick={(e) => e.stopPropagation()}
                                         >
-                                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                                <path d="M9 1L1 9M9 5L5 9M9 9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" />
-                                            </svg>
+                                            {/* ── شريط التحكم العلوي ── */}
+                                            <div
+                                                className="w-full bg-blue-600 text-white flex items-center justify-between px-2 py-1 rounded-t-xl cursor-move shadow-lg select-none"
+                                                onMouseDown={(e) => startTextDrag(e, item.id)}
+                                            >
+                                                <div className="flex items-center gap-1">
+                                                    <Move className="w-3 h-3 opacity-80" />
+                                                    <span className="text-[9px] font-black opacity-80">اسحب المحرر</span>
+                                                </div>
+
+                                                {/* أدوات التحكم */}
+                                                <div className="flex items-center gap-1" onMouseDown={e => e.stopPropagation()}>
+                                                    {/* حجم الخط */}
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); setTextItems(p => p.map(t => t.id === item.id ? { ...t, fontSize: Math.max(8, (t.fontSize || 18) - 2) } : t)); }}
+                                                        className="bg-white/20 hover:bg-white/40 rounded px-1 py-0.5 text-[10px] font-black transition-colors"
+                                                        title="تصغير الخط"
+                                                    >A-</button>
+                                                    <span className="text-[9px] font-bold bg-white/10 px-1 rounded min-w-[22px] text-center">{fontSize}</span>
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); setTextItems(p => p.map(t => t.id === item.id ? { ...t, fontSize: Math.min(72, (t.fontSize || 18) + 2) } : t)); }}
+                                                        className="bg-white/20 hover:bg-white/40 rounded px-1 py-0.5 text-[10px] font-black transition-colors"
+                                                        title="تكبير الخط"
+                                                    >A+</button>
+
+                                                    <div className="w-px h-3 bg-white/30 mx-0.5" />
+
+                                                    {/* عريض */}
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); setTextItems(p => p.map(t => t.id === item.id ? { ...t, bold: !t.bold } : t)); }}
+                                                        className={`rounded px-1 py-0.5 text-[10px] font-black transition-colors ${item.bold ? 'bg-white text-blue-700' : 'bg-white/20 hover:bg-white/40'}`}
+                                                        title="عريض"
+                                                    ><b>B</b></button>
+
+                                                    <div className="w-px h-3 bg-white/30 mx-0.5" />
+
+                                                    {/* لون النص */}
+                                                    <label title="لون النص" className="cursor-pointer flex items-center" onMouseDown={e => e.stopPropagation()}>
+                                                        <div className="w-4 h-4 rounded-full border-2 border-white shadow-inner" style={{ background: color }} />
+                                                        <input
+                                                            type="color"
+                                                            value={color}
+                                                            className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                                                            onChange={e => setTextItems(p => p.map(t => t.id === item.id ? { ...t, color: e.target.value } : t))}
+                                                            onClick={e => e.stopPropagation()}
+                                                            ref={el => { if (el) el.addEventListener('click', ev => ev.stopPropagation()); }}
+                                                            style={{ position: 'absolute', opacity: 0, width: '1px', height: '1px' }}
+                                                            id={`color-${item.id}`}
+                                                        />
+                                                        <span
+                                                            className="text-[9px] font-black opacity-80 mr-0.5 cursor-pointer"
+                                                            onClick={e => { e.stopPropagation(); document.getElementById(`color-${item.id}`)?.click(); }}
+                                                        >لون</span>
+                                                    </label>
+
+                                                    <div className="w-px h-3 bg-white/30 mx-0.5" />
+
+                                                    {/* إغلاق المحرر */}
+                                                    <button
+                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                        onClick={(e) => { e.stopPropagation(); setSelectedTextId(null); setEditingTextId(null); }}
+                                                        className="bg-white/20 hover:bg-emerald-500 rounded px-1.5 py-0.5 text-[9px] font-black transition-colors"
+                                                        title="إغلاق المحرر"
+                                                    >تم</button>
+
+                                                    <div className="w-px h-3 bg-white/30 mx-0.5" />
+
+                                                    {/* حذف */}
+                                                    <button
+                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                        onClick={(e) => { e.stopPropagation(); setTextItems(prev => prev.filter(t => t.id !== item.id)); if (selectedTextId === item.id) setSelectedTextId(null); }}
+                                                        className="bg-white/10 hover:bg-red-500 rounded p-0.5 transition-colors"
+                                                        title="حذف"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* ── منطقة النص ── */}
+                                            <div
+                                                className="relative bg-white border-2 border-blue-500 rounded-b-xl shadow-2xl overflow-hidden"
+                                                style={{ height: `${itemH}px` }}
+                                            >
+                                                <textarea
+                                                    className="w-full h-full bg-transparent outline-none resize-none p-3"
+                                                    style={{
+                                                        fontSize: `${fontSize}px`,
+                                                        color: color,
+                                                        fontWeight: item.bold ? 'bold' : 'normal',
+                                                        direction: 'rtl',
+                                                        fontFamily: 'Cairo, sans-serif'
+                                                    }}
+                                                    autoFocus
+                                                    value={item.text}
+                                                    placeholder="اكتب هنا..."
+                                                    onChange={(e) => {
+                                                        const value = e.target.value;
+                                                        setTextItems(prev => prev.map(t => t.id === item.id ? { ...t, text: value } : t));
+                                                    }}
+                                                    onKeyDown={(e) => { if (e.key === 'Escape' || (e.key === 'Enter' && e.ctrlKey)) { setEditingTextId(null); setSelectedTextId(null); } }}
+                                                    onClick={e => e.stopPropagation()}
+                                                    onMouseDown={e => e.stopPropagation()}
+                                                />
+
+                                                {/* ── مقبض resize الزاوية ── */}
+                                                <div
+                                                    className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-10 flex items-end justify-end pb-0.5 pr-0.5"
+                                                    onMouseDown={(e) => startTextResize(e, item.id)}
+                                                    title="اسحب لتغيير الحجم"
+                                                >
+                                                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                                        <path d="M9 1L1 9M9 5L5 9M9 9" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" />
+                                                    </svg>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>,
+                                    )}
+                                </>,
                                 pageLayer
                             );
                         })}

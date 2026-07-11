@@ -184,13 +184,11 @@ export async function POST(request) {
             }
 
             const textWidth = arabicFont.widthOfTextAtSize(text, fontSize);
-            // 12px padding in screen coordinate is scaled by scaleX
-            const padding = 12 * scaleX;
-            const rtlX = Math.max(0, finalX + finalWidth - padding - textWidth);
+            const rtlX = Math.max(0, finalX - textWidth);
             
-            // Adjust vertical coordinate (y) to match text baseline inside the container:
-            // Container top padding (12px) + title bar height (22px) + border (2px) = 36px in screen coordinate
-            const rtlY = Math.max(0, finalY - (36 + fontSize * 0.8) * scaleY);
+            // Adjust vertical coordinate (y) to match text baseline:
+            // Since y is measured from bottom, baseline is y - fontSize * 0.8
+            const rtlY = Math.max(0, finalY - fontSize * 0.8);
 
             targetPage.drawText(text, {
                 x: rtlX,

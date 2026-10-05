@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 // مسار المجلد الشبكي الثابت
-const SIGNATURES_DIR = "\\\\192.168.13.11\\it_dep\\sign";
+const SIGNATURES_DIR = "\\\\192.168.13.11\\E\\it_dept\\sign";
 
 // GET - التحقق من وجود تواقيع للموظف
 export async function GET(request) {

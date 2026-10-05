@@ -5,7 +5,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { getConnection, getConnection2 } from "@/lib/oracle";
 import { getSession } from "@/lib/auth";
 
-const SIGNATURES_DIR = "\\\\192.168.13.11\\it_dep\\sign";
+const SIGNATURES_DIR = "\\\\192.168.13.11\\E\\it_dept\\sign";
 
 export async function POST(request) {
     let connection;

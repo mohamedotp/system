@@ -53,9 +53,21 @@ export async function GET(req) {
 
 FROM main_mast m
 
-LEFT JOIN general g 
+LEFT JOIN (
+    SELECT *
+    FROM (
+        SELECT 
+            g.*,
+            ROW_NUMBER() OVER (
+                PARTITION BY g.emp_num
+                ORDER BY g.up_date DESC
+            ) AS rn
+        FROM general g
+        WHERE g.flag = 1
+    )
+    WHERE rn = 1
+) g
     ON m.emp_num = g.emp_num
-   AND g.last_flag = 1
 
 LEFT JOIN deddata d
     ON d.d_emp_num = m.emp_num

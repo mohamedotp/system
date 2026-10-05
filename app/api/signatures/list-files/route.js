@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 export async function GET() {
-    const directoryPath = "\\\\192.168.13.11\\it_dep\\sign";
+    const directoryPath = "\\\\192.168.13.11\\E\\it_dept\\sign";
 
     try {
         if (!fs.existsSync(directoryPath)) {

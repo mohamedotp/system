@@ -22,7 +22,7 @@ try {
     }
     $allowed = @(
         '\\192.168.13.12\homes',
-        '\\192.168.13.11\it_dep'
+        '\\192.168.13.11\e\it_dept'
     )
     $isAllowed = $false
     foreach ($prefix in $allowed) {

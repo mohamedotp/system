@@ -45,8 +45,8 @@ const translations = {
   "G_REPRSNT": "بدل التمثيل",
   "G_CAR": "مصاريف انتقال",
   "G_TOT_ADV": "الدرجة العلمية",
-  "HOURS": "قيمة ساعات اضافي",
-  "A_DAYS": "قيمة ايام اضافي",
+  "HOURS": "قيمة الاضافي وبدل الانتقال",
+  "A_DAYS": "عدد أيام الاضافى",
   "COMP_OVR_TIM": "مستحقات اخري",
   "G_SP_ADV_01": "العلاوات الخاصة",
   "G_SP_ADV_02": "العلاوة الأستثنائية",
@@ -91,7 +91,7 @@ const incomeFields = [
   { key: "G_REPRSNT", label: translations.G_REPRSNT },
   { key: "G_CAR", label: translations.G_CAR },
   { key: "G_TOT_ADV", label: translations.G_TOT_ADV },
-  { key: "HOURS", label: translations.HOURS },
+  { key: "HOURS", label: translations.HOURS,calc:(employee)=>Number(employee.G_OVR_TIM || 0) + Number(employee.G_PAY_ADV || 0) },
   { key: "A_DAYS", label: translations.A_DAYS },
   { key: "COMP_OVR_TIM", label: translations.COMP_OVR_TIM },
   { key: "G_SP_ADV_01", label: translations.G_SP_ADV_01 },
@@ -277,7 +277,7 @@ export default function EmployeeForm() {
             </div>
 
             <div className="space-y-6">
-              <Card className="bg-slate-900 text-white border-none shadow-2xl relative overflow-hidden">
+                  <Card className="bg-slate-900 text-white border-none shadow-2xl relative overflow-hidden">
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-blue-600/20 rounded-full blur-3xl" />
                 <CardHeader>
                   <CardTitle className="text-slate-400 text-sm font-medium flex items-center gap-2">
@@ -285,8 +285,8 @@ export default function EmployeeForm() {
                     الصافي المستحق
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-5xl font-bold tracking-tight mb-2">
+                <CardContent className="group cursor-pointer">
+                  <div className="text-5xl font-bold tracking-tight mb-2 blur-md group-hover:blur-none transition-all duration-300 select-none">
                     {Number(employee.G_NET_PAY || 0).toLocaleString("ar-EG")}
                     <span className="text-xl font-medium mr-2 text-slate-500">ج.م</span>
                   </div>
@@ -297,15 +297,17 @@ export default function EmployeeForm() {
                 </CardContent>
                 <Separator className="bg-slate-800 " />
                 <CardFooter className="flex flex-col gap-3 py-6 font-primary text-right">
-                  <div className="w-full flex justify-between text-sm hover:bg-slate-800 p-2 rounded-xl cursor-pointer" onClick={() => setOpenIncomeModal(true)}>
+                  <div className="group w-full flex justify-between text-sm hover:bg-slate-800 p-2 rounded-xl cursor-pointer" onClick={() => setOpenIncomeModal(true)}>
                     <span className="text-slate-400">إجمالي الإيرادات</span>
-                    <span className="font-mono text-green-500">
+                    <span className="font-mono text-green-500 blur-sm group-hover:blur-none transition-all duration-300 select-none">
                       {totalVar?.calc(employee).toLocaleString("ar-EG") || 0} ج.م
                     </span>
                   </div>
-                  <div className="w-full flex justify-between text-sm hover:bg-slate-800 p-2 rounded-xl cursor-pointer" onClick={() => setOpenDeductionModal(true)}>
+                  <div className="group w-full flex justify-between text-sm hover:bg-slate-800 p-2 rounded-xl cursor-pointer" onClick={() => setOpenDeductionModal(true)}>
                     <span className="text-slate-400">إجمالي الخصومات</span>
-                    <span className="font-mono text-red-500">{totalDeduction?.calc(employee).toLocaleString("ar-EG") || 0} ج.م</span>
+                    <span className="font-mono text-red-500 blur-sm group-hover:blur-none transition-all duration-300 select-none">
+                      {totalDeduction?.calc(employee).toLocaleString("ar-EG") || 0} ج.م
+                    </span>
                   </div>
                 </CardFooter>
               </Card>

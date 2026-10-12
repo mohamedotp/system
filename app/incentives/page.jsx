@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Award,
   Wallet,
@@ -22,13 +21,13 @@ import {
   Building2,
   Calendar,
   AlertCircle,
-  HelpCircle,
   ArrowDownRight,
-  ArrowUpRight,
   Minus,
   Equal,
   Sparkles,
-  ChevronLeft
+  Lock,
+  Unlock,
+  CheckCircle2
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,7 +36,8 @@ export default function IncentivesPage() {
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showValues, setShowValues] = useState(true);
+  // القيمة الافتراضية مغلقة (بلور) لحماية الخصوصية
+  const [showValues, setShowValues] = useState(false);
   const router = useRouter();
 
   const fetchIncentives = async () => {
@@ -70,6 +70,18 @@ export default function IncentivesPage() {
   useEffect(() => {
     fetchIncentives();
   }, []);
+
+  const togglePrivacy = () => {
+    setShowValues((prev) => {
+      const next = !prev;
+      if (next) {
+        toast.success("تم كشف الأرقام بنجاح", { duration: 1800 });
+      } else {
+        toast.info("تم تفعيل حماية الخصوصية وإخفاء الأرقام", { duration: 1800 });
+      }
+      return next;
+    });
+  };
 
   const formatCurrency = (val) => {
     if (val === undefined || val === null) return "0.00";
@@ -125,16 +137,32 @@ export default function IncentivesPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex items-center gap-2.5 self-end sm:self-auto">
+              {/* Privacy Toggle Button with animated effect */}
               <Button
-                variant="outline"
+                variant={showValues ? "outline" : "default"}
                 size="sm"
-                onClick={() => setShowValues(!showValues)}
-                className="gap-2 text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100 text-xs rounded-xl"
+                onClick={togglePrivacy}
+                className={`relative overflow-hidden gap-2 font-bold transition-all duration-300 rounded-xl text-xs px-3.5 h-9 ${
+                  showValues
+                    ? "border-slate-300 bg-slate-100/80 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+                    : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md shadow-amber-500/20 border-none"
+                }`}
                 title={showValues ? "إخفاء الأرقام للخصوصية" : "إظهار الأرقام"}
               >
-                {showValues ? <EyeOff className="w-3.5 h-3.5 text-slate-500" /> : <Eye className="w-3.5 h-3.5 text-amber-600" />}
-                <span>{showValues ? "إخفاء القيم" : "إظهار القيم"}</span>
+                <span className="relative z-10 flex items-center gap-1.5">
+                  {showValues ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5 text-rose-500 transition-transform duration-300 hover:scale-110" />
+                      <span>إخفاء الأرقام</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5 text-white animate-pulse" />
+                      <span>كشف الأرقام</span>
+                    </>
+                  )}
+                </span>
               </Button>
 
               <Button
@@ -142,7 +170,7 @@ export default function IncentivesPage() {
                 size="sm"
                 onClick={fetchIncentives}
                 disabled={loading}
-                className="gap-1.5 text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100 text-xs rounded-xl"
+                className="gap-1.5 text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100 text-xs rounded-xl h-9"
                 title="تحديث البيانات"
               >
                 <RotateCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -153,7 +181,7 @@ export default function IncentivesPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => window.print()}
-                className="gap-1.5 text-slate-700 hover:text-slate-900 border-slate-200 hover:bg-slate-100 text-xs rounded-xl"
+                className="gap-1.5 text-slate-700 hover:text-slate-900 border-slate-200 hover:bg-slate-100 text-xs rounded-xl h-9"
                 title="طباعة البيان"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -164,7 +192,7 @@ export default function IncentivesPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs rounded-xl font-bold"
+                  className="gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs rounded-xl font-bold h-9"
                 >
                   <Wallet className="w-3.5 h-3.5" />
                   <span className="hidden md:inline">كشف المرتب</span>
@@ -258,14 +286,28 @@ export default function IncentivesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 bg-amber-50/70 border border-amber-200/60 rounded-2xl px-4 py-3 self-start md:self-auto">
-                  <Calendar className="w-5 h-5 text-amber-600 shrink-0" />
-                  <div className="text-right">
-                    <p className="text-[11px] font-bold text-amber-800/80">تاريخ آخر احتساب</p>
-                    <p className="text-xs font-black text-amber-950">
-                      {formatDate(data.upDate)}
-                    </p>
-                  </div>
+                {/* Privacy Badge / Status Indicator */}
+                <div className="flex items-center gap-2 self-start md:self-auto">
+                  <button
+                    onClick={togglePrivacy}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                      showValues
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                        : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                    }`}
+                  >
+                    {showValues ? (
+                      <>
+                        <Unlock className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>الأرقام مرئية</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-slate-500" />
+                        <span>الأرقام مخفية (محمية)</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -283,79 +325,328 @@ export default function IncentivesPage() {
                     صافي الحافز المستحق للصرف
                   </div>
                   <h3 className="text-slate-400 text-xs sm:text-sm mt-1">
-                                     المبلغ الفعلي القابل للتحويل بعد خصم كافة المعاشات والضرائب
-                      </h3>
+                    المبلغ الفعلي بعد خصم كافة المعاشات والضرائب
+                  </h3>
 
-                  <div className="flex items-baseline gap-3 mt-4">
+                  {/* Net Amount with clickable toggle & smooth unblur effect */}
+                  <div
+                    onClick={togglePrivacy}
+                    className="group cursor-pointer inline-flex items-baseline gap-3 mt-4 select-none relative"
+                    title={showValues ? "انقر للإخفاء" : "انقر لإظهار المبلغ"}
+                  >
                     <div
-                      className={`text-4xl sm:text-6xl font-black tracking-tight text-white transition-all duration-300 font-mono ${showValues ? "" : "blur-lg select-none"
-                        }`}
+                      className={`text-4xl sm:text-6xl font-black tracking-tight text-white font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+                        showValues
+                          ? "blur-0 opacity-100 scale-100 drop-shadow-[0_0_25px_rgba(16,185,129,0.35)]"
+                          : "blur-xl opacity-30 scale-95 hover:opacity-50"
+                      }`}
                     >
                       {formatCurrency(data.net)}
                     </div>
-                    <span className="text-xl sm:text-2xl font-bold text-emerald-400">
+                    <span className="text-xl sm:text-2xl font-bold text-emerald-400 transition-opacity duration-500">
                       ج.م
                     </span>
+
+                    {/* Hint overlay on blur */}
+                    {!showValues && (
+                      <span className="absolute -bottom-6 right-0 text-[11px] font-bold text-amber-400/90 flex items-center gap-1 group-hover:underline">
+                        <Eye className="w-3 h-3" />
+                        اضغط للكشف
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Quick stats column */}
+                {/* Quick stats column with smooth unblur transition */}
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 md:border-r md:border-slate-800 md:pr-8 min-w-[240px]">
-                  <div className="bg-slate-800/60 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5">
+                  {/* Gross Incentive */}
+                  <div
+                    onClick={togglePrivacy}
+                    className="bg-slate-800/60 hover:bg-slate-800/90 cursor-pointer backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5 transition-all group"
+                  >
                     <div className="flex items-center gap-1.5 text-[11px] text-amber-400 font-bold">
                       <TrendingUp className="w-3.5 h-3.5" />
                       إجمالي الحافز
                     </div>
-                    <p
-                      className={`text-base sm:text-lg font-black text-white font-mono mt-1 ${showValues ? "" : "blur-sm select-none"
+                    <p className="text-base sm:text-lg font-black text-white font-mono mt-1 overflow-hidden">
+                      <span
+                        className={`inline-block transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+                          showValues
+                            ? "blur-0 opacity-100 scale-100"
+                            : "blur-md opacity-30 scale-90"
                         }`}
-                    >
-                      {formatCurrency(data.gft)} <span className="text-xs text-slate-400 font-normal">ج.م</span>
+                      >
+                        {formatCurrency(data.gft)}
+                      </span>{" "}
+                      <span className="text-xs text-slate-400 font-normal">ج.م</span>
                     </p>
                   </div>
 
-                  <div className="bg-slate-800/60 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5">
+                  {/* Total Deductions */}
+                  <div
+                    onClick={togglePrivacy}
+                    className="bg-slate-800/60 hover:bg-slate-800/90 cursor-pointer backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5 transition-all group"
+                  >
                     <div className="flex items-center gap-1.5 text-[11px] text-red-400 font-bold">
                       <ArrowDownRight className="w-3.5 h-3.5" />
                       إجمالي الاستقطاعات
                     </div>
-                    <p
-                      className={`text-base sm:text-lg font-black text-white font-mono mt-1 ${showValues ? "" : "blur-sm select-none"
+                    <p className="text-base sm:text-lg font-black text-white font-mono mt-1 overflow-hidden">
+                      <span
+                        className={`inline-block transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+                          showValues
+                            ? "blur-0 opacity-100 scale-100"
+                            : "blur-md opacity-30 scale-90"
                         }`}
-                    >
-                      {formatCurrency(data.totalDeductions)} <span className="text-xs text-slate-400 font-normal">ج.م</span>
+                      >
+                        {formatCurrency(data.totalDeductions)}
+                      </span>{" "}
+                      <span className="text-xs text-slate-400 font-normal">ج.م</span>
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Formula Breadcrumb */}
+              {/* Formula Breadcrumb with animated numbers */}
               <div className="mt-8 pt-6 border-t border-slate-800/80">
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <span className="text-slate-400 font-bold">معادلة الاحتساب:</span>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm font-bold">
-                    <span className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                      قيمة الحافز ({showValues ? formatCurrency(data.gft) : "••••"})
+                    {/* GFT */}
+                    <span
+                      onClick={togglePrivacy}
+                      className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-amber-500/20 transition-all"
+                    >
+                      قيمة الحافز (
+                      <span
+                        className={`font-mono inline-block transition-all duration-500 ${
+                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
+                        }`}
+                      >
+                        {formatCurrency(data.gft)}
+                      </span>
+                      )
                     </span>
+
                     <Minus className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-lg">
-                      المعاشات ({showValues ? formatCurrency(data.pensions) : "••••"})
+
+                    {/* Pensions */}
+                    <span
+                      onClick={togglePrivacy}
+                      className="bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-indigo-500/20 transition-all"
+                    >
+                      المعاشات (
+                      <span
+                        className={`font-mono inline-block transition-all duration-500 ${
+                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
+                        }`}
+                      >
+                        {formatCurrency(data.pensions)}
+                      </span>
+                      )
                     </span>
+
                     <Minus className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="bg-rose-500/10 text-rose-300 border border-rose-500/20 px-2.5 py-1 rounded-lg">
-                      الضريبة ({showValues ? formatCurrency(data.pTaxe) : "••••"})
+
+                    {/* Taxes */}
+                    <span
+                      onClick={togglePrivacy}
+                      className="bg-rose-500/10 text-rose-300 border border-rose-500/20 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-rose-500/20 transition-all"
+                    >
+                      الضريبة (
+                      <span
+                        className={`font-mono inline-block transition-all duration-500 ${
+                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
+                        }`}
+                      >
+                        {formatCurrency(data.pTaxe)}
+                      </span>
+                      )
                     </span>
+
                     <Equal className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-lg">
-                      الصافي ({showValues ? formatCurrency(data.net) : "••••"})
+
+                    {/* Net */}
+                    <span
+                      onClick={togglePrivacy}
+                      className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-lg cursor-pointer hover:bg-emerald-500/30 transition-all"
+                    >
+                      الصافي (
+                      <span
+                        className={`font-mono inline-block transition-all duration-500 ${
+                          showValues ? "blur-0 opacity-100 font-black" : "blur-xs opacity-40"
+                        }`}
+                      >
+                        {formatCurrency(data.net)}
+                      </span>
+                      )
                     </span>
                   </div>
+
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {showValues ? "وضع العرض النشط" : "وضع الخصوصية المحمي"}
+                  </span>
                 </div>
               </div>
             </div>
 
+            {/* 3 Clean Modern Cards for the Terms (المصطلحات بوضوح مع البلور التفاعلي) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Card 1: قيمة الحافز */}
+              <Card
+                onClick={togglePrivacy}
+                className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all cursor-pointer group"
+              >
+                <div className="h-1.5 bg-gradient-to-r from-amber-400 to-amber-500" />
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[11px] font-bold">
+                      استحقاق
+                    </Badge>
+                    <div className="w-9 h-9 rounded-xl bg-amber-100/70 text-amber-600 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <CardTitle className="text-base font-black text-slate-900 mt-2">
+                    قيمة الحافز
+                  </CardTitle>
+                  <p className="text-xs text-slate-500">
+                    المسمى في القاعدة: <code className="text-amber-700 font-mono text-[11px]">gft</code>
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <p className="text-[11px] text-slate-400 font-bold mb-1">المبلغ الإجمالي المعتمد</p>
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className={`text-2xl sm:text-3xl font-black text-slate-900 font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+                          showValues ? "blur-0 opacity-100 scale-100" : "blur-md opacity-30 scale-95"
+                        }`}
+                      >
+                        {formatCurrency(data.gft)}
+                      </span>
+                      <span className="text-sm font-bold text-slate-500">ج.م</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-amber-50/40 rounded-xl p-3 border border-amber-100/60">
+                    يمثل القيمة الإجمالية للحافز المستحق قبل خصم اشتراكات التأمينات والضرائب المقررة.
+                  </p>
+                </CardContent>
+              </Card>
 
+              {/* Card 2: المعاشات */}
+              <Card
+                onClick={togglePrivacy}
+                className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all cursor-pointer group"
+              >
+                <div className="h-1.5 bg-gradient-to-r from-indigo-500 to-blue-500" />
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px] font-bold">
+                      استقطاع تأميني
+                    </Badge>
+                    <div className="w-9 h-9 rounded-xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <CardTitle className="text-base font-black text-slate-900 mt-2">
+                    المعاشات
+                  </CardTitle>
+                  <p className="text-xs text-slate-500">
+                    المعادلة: <code className="text-indigo-700 font-mono text-[11px]">g_prs_bas_ins + g_prs_end_pnft</code>
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[11px] text-slate-400 font-bold">إجمالي استقطاع المعاشات</p>
+                      <span className="text-[11px] text-indigo-600 font-bold font-mono">
+                        {getPercentage(data.pensions, data.gft)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className={`text-2xl sm:text-3xl font-black text-rose-600 font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+                          showValues ? "blur-0 opacity-100 scale-100" : "blur-md opacity-30 scale-95"
+                        }`}
+                      >
+                        {formatCurrency(data.pensions)}
+                      </span>
+                      <span className="text-sm font-bold text-slate-500">ج.م</span>
+                    </div>
+                  </div>
 
+                  <div className="space-y-1.5 bg-slate-50/80 rounded-xl p-2.5 text-xs border border-slate-100">
+                    <div className="flex justify-between items-center text-slate-600 py-1 border-b border-slate-200/60">
+                      <span className="text-[11px]">حصة المعاش الأساسي:</span>
+                      <span
+                        className={`font-mono font-bold text-slate-800 transition-all duration-500 ${
+                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
+                        }`}
+                      >
+                        {formatCurrency(data.gPrsBasIns)} ج.م
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-600 py-1">
+                      <span className="text-[11px]">مكافأة نهاية الخدمة (1%):</span>
+                      <span
+                        className={`font-mono font-bold text-slate-800 transition-all duration-500 ${
+                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
+                        }`}
+                      >
+                        {formatCurrency(data.gPrsEndPnft)} ج.م
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 3: الضريبة */}
+              <Card
+                onClick={togglePrivacy}
+                className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all cursor-pointer group"
+              >
+                <div className="h-1.5 bg-gradient-to-r from-rose-500 to-red-500" />
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[11px] font-bold">
+                      استقطاع ضريبي
+                    </Badge>
+                    <div className="w-9 h-9 rounded-xl bg-rose-100/70 text-rose-600 flex items-center justify-center">
+                      <Receipt className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <CardTitle className="text-base font-black text-slate-900 mt-2">
+                    الضريبة
+                  </CardTitle>
+                  <p className="text-xs text-slate-500">
+                    المسمى في القاعدة: <code className="text-rose-700 font-mono text-[11px]">p_taxe</code>
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[11px] text-slate-400 font-bold">قيمة ضريبة الحافز</p>
+                      <span className="text-[11px] text-rose-600 font-bold font-mono">
+                        {getPercentage(data.pTaxe, data.gft)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className={`text-2xl sm:text-3xl font-black text-rose-600 font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
+                          showValues ? "blur-0 opacity-100 scale-100" : "blur-md opacity-30 scale-95"
+                        }`}
+                      >
+                        {formatCurrency(data.pTaxe)}
+                      </span>
+                      <span className="text-sm font-bold text-slate-500">ج.م</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-rose-50/40 rounded-xl p-3 border border-rose-100/60">
+                    الضريبة القانونية المستقطعة من وعاء الحافز وفقاً للشرائح الضريبية المقررة بقانون الضرائب.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </>
         )}
       </div>

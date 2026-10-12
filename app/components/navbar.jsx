@@ -358,24 +358,6 @@ export default function Navbar() {
           </ul>
 
           <ul className="hidden md:flex items-center gap-1">
-            <li>
-              <Link href="/incentives">
-                <Button
-                  variant="ghost"
-                  className={`gap-2 font-medium h-10 transition-colors ${
-                    pathname === "/incentives"
-                      ? "text-amber-400 bg-amber-500/10 border border-amber-500/30 font-bold"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <Award className="w-4 h-4 text-amber-400" />
-                  <span>الحوافز</span>
-                </Button>
-              </Link>
-            </li>
-          </ul>
-
-          <ul className="hidden md:flex items-center gap-1">
             <li className="relative group">
               <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-800 gap-2 font-medium h-10">
                 <FolderOpen className="w-4 h-4" />

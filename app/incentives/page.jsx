@@ -238,7 +238,7 @@ export default function IncentivesPage() {
                 <div>
                   <div className="flex items-center gap-2 text-emerald-400 text-xs sm:text-sm font-bold tracking-wide uppercase">
                     <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    صافي الحافز المستحق للصرف
+                    صافي الحافز المستحق 
                   </div>
                   <h3 className="text-slate-400 text-xs sm:text-sm mt-1">
                     المبلغ الفعلي بعد خصم كافة المعاشات والضرائب
@@ -264,12 +264,12 @@ export default function IncentivesPage() {
                     </span>
 
                     {/* Hint overlay on blur */}
-                    {!showValues && (
+                    {/* {!showValues && (
                       <span className="absolute -bottom-6 right-0 text-[11px] font-bold text-amber-400/90 flex items-center gap-1 group-hover:underline">
                         <Eye className="w-3 h-3" />
                         اضغط للكشف
                       </span>
-                    )}
+                    )} */}
                   </div>
                 </div>
 
@@ -398,9 +398,9 @@ export default function IncentivesPage() {
                     </span>
                   </div>
 
-                  <span className="text-[11px] text-slate-500 font-mono">
+                  {/* <span className="text-[11px] text-slate-500 font-mono">
                     {showValues ? "وضع العرض النشط" : "وضع الخصوصية المحمي"}
-                  </span>
+                  </span> */}
                 </div>
               </div>
             </div>

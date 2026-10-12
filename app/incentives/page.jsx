@@ -75,9 +75,9 @@ export default function IncentivesPage() {
     setShowValues((prev) => {
       const next = !prev;
       if (next) {
-        toast.success("تم كشف الأرقام بنجاح", { duration: 1800 });
+        toast.success("  كشف الأرقام", { duration: 1800 });
       } else {
-        toast.info("تم تفعيل حماية الخصوصية وإخفاء الأرقام", { duration: 1800 });
+        toast.info("  إخفاء الأرقام", { duration: 1800 });
       }
       return next;
     });
@@ -126,68 +126,13 @@ export default function IncentivesPage() {
                   <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                     بيان الحوافز الشهرية
                   </h1>
-                  <Badge className="bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 border-amber-300/40 text-xs font-bold">
-                    حافز الإنتاج
-                  </Badge>
+                  
                 </div>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                  تفاصيل الاستحقاقات والاستقطاعات لصافي الحافز المعتمد
-                </p>
               </div>
             </div>
 
             {/* Actions */}
             <div className="flex items-center gap-2.5 self-end sm:self-auto">
-              {/* Privacy Toggle Button with animated effect */}
-              <Button
-                variant={showValues ? "outline" : "default"}
-                size="sm"
-                onClick={togglePrivacy}
-                className={`relative overflow-hidden gap-2 font-bold transition-all duration-300 rounded-xl text-xs px-3.5 h-9 ${
-                  showValues
-                    ? "border-slate-300 bg-slate-100/80 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
-                    : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md shadow-amber-500/20 border-none"
-                }`}
-                title={showValues ? "إخفاء الأرقام للخصوصية" : "إظهار الأرقام"}
-              >
-                <span className="relative z-10 flex items-center gap-1.5">
-                  {showValues ? (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5 text-rose-500 transition-transform duration-300 hover:scale-110" />
-                      <span>إخفاء الأرقام</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-3.5 h-3.5 text-white animate-pulse" />
-                      <span>كشف الأرقام</span>
-                    </>
-                  )}
-                </span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchIncentives}
-                disabled={loading}
-                className="gap-1.5 text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100 text-xs rounded-xl h-9"
-                title="تحديث البيانات"
-              >
-                <RotateCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline">تحديث</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.print()}
-                className="gap-1.5 text-slate-700 hover:text-slate-900 border-slate-200 hover:bg-slate-100 text-xs rounded-xl h-9"
-                title="طباعة البيان"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">طباعة</span>
-              </Button>
-
               <Link href="/employee">
                 <Button
                   variant="ghost"
@@ -209,7 +154,7 @@ export default function IncentivesPage() {
           <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-200/80 shadow-sm animate-pulse">
             <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
             <p className="text-slate-600 font-medium">جاري تحميل بيان الحوافز...</p>
-            <p className="text-slate-400 text-xs mt-1">يتم جلب الحسابات مباشرة من قاعدة البيانات</p>
+            {/* <p className="text-slate-400 text-xs mt-1">يتم جلب الحسابات مباشرة من قاعدة البيانات</p> */}
           </div>
         )}
 
@@ -241,7 +186,7 @@ export default function IncentivesPage() {
               </div>
               <h3 className="text-lg font-bold text-slate-800">لا توجد بيانات حوافز متاحة</h3>
               <p className="text-sm text-slate-500 max-w-md mx-auto">
-                لم يتم إدراج بيانات حوافز معتمدة لحسابك في آخر تحديث لقاعدة البيانات.
+                لم يوجد حوافز معتمدة لحسابك في آخر تحديث  لدينا
               </p>
               <Link href="/employee">
                 <Button variant="outline" className="mt-2 text-xs rounded-xl">
@@ -277,37 +222,8 @@ export default function IncentivesPage() {
                           {employee.sectorName}
                         </span>
                       )}
-                      {employee?.empDeg && employee.empDeg !== "-" && (
-                        <Badge variant="outline" className="text-slate-600 border-slate-200 bg-slate-50">
-                          {employee.empDeg}
-                        </Badge>
-                      )}
                     </div>
                   </div>
-                </div>
-
-                {/* Privacy Badge / Status Indicator */}
-                <div className="flex items-center gap-2 self-start md:self-auto">
-                  <button
-                    onClick={togglePrivacy}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                      showValues
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                        : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
-                    }`}
-                  >
-                    {showValues ? (
-                      <>
-                        <Unlock className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>الأرقام مرئية</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-3.5 h-3.5 text-slate-500" />
-                        <span>الأرقام مخفية (محمية)</span>
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
             </div>
@@ -489,164 +405,7 @@ export default function IncentivesPage() {
               </div>
             </div>
 
-            {/* 3 Clean Modern Cards for the Terms (المصطلحات بوضوح مع البلور التفاعلي) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* Card 1: قيمة الحافز */}
-              <Card
-                onClick={togglePrivacy}
-                className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all cursor-pointer group"
-              >
-                <div className="h-1.5 bg-gradient-to-r from-amber-400 to-amber-500" />
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[11px] font-bold">
-                      استحقاق
-                    </Badge>
-                    <div className="w-9 h-9 rounded-xl bg-amber-100/70 text-amber-600 flex items-center justify-center">
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <CardTitle className="text-base font-black text-slate-900 mt-2">
-                    قيمة الحافز
-                  </CardTitle>
-                  <p className="text-xs text-slate-500">
-                    المسمى في القاعدة: <code className="text-amber-700 font-mono text-[11px]">gft</code>
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <p className="text-[11px] text-slate-400 font-bold mb-1">المبلغ الإجمالي المعتمد</p>
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={`text-2xl sm:text-3xl font-black text-slate-900 font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
-                          showValues ? "blur-0 opacity-100 scale-100" : "blur-md opacity-30 scale-95"
-                        }`}
-                      >
-                        {formatCurrency(data.gft)}
-                      </span>
-                      <span className="text-sm font-bold text-slate-500">ج.م</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed bg-amber-50/40 rounded-xl p-3 border border-amber-100/60">
-                    يمثل القيمة الإجمالية للحافز المستحق قبل خصم اشتراكات التأمينات والضرائب المقررة.
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Card 2: المعاشات */}
-              <Card
-                onClick={togglePrivacy}
-                className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all cursor-pointer group"
-              >
-                <div className="h-1.5 bg-gradient-to-r from-indigo-500 to-blue-500" />
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px] font-bold">
-                      استقطاع تأميني
-                    </Badge>
-                    <div className="w-9 h-9 rounded-xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <CardTitle className="text-base font-black text-slate-900 mt-2">
-                    المعاشات
-                  </CardTitle>
-                  <p className="text-xs text-slate-500">
-                    المعادلة: <code className="text-indigo-700 font-mono text-[11px]">g_prs_bas_ins + g_prs_end_pnft</code>
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[11px] text-slate-400 font-bold">إجمالي استقطاع المعاشات</p>
-                      <span className="text-[11px] text-indigo-600 font-bold font-mono">
-                        {getPercentage(data.pensions, data.gft)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={`text-2xl sm:text-3xl font-black text-rose-600 font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
-                          showValues ? "blur-0 opacity-100 scale-100" : "blur-md opacity-30 scale-95"
-                        }`}
-                      >
-                        {formatCurrency(data.pensions)}
-                      </span>
-                      <span className="text-sm font-bold text-slate-500">ج.م</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 bg-slate-50/80 rounded-xl p-2.5 text-xs border border-slate-100">
-                    <div className="flex justify-between items-center text-slate-600 py-1 border-b border-slate-200/60">
-                      <span className="text-[11px]">حصة المعاش الأساسي:</span>
-                      <span
-                        className={`font-mono font-bold text-slate-800 transition-all duration-500 ${
-                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
-                        }`}
-                      >
-                        {formatCurrency(data.gPrsBasIns)} ج.م
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-600 py-1">
-                      <span className="text-[11px]">مكافأة نهاية الخدمة (1%):</span>
-                      <span
-                        className={`font-mono font-bold text-slate-800 transition-all duration-500 ${
-                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
-                        }`}
-                      >
-                        {formatCurrency(data.gPrsEndPnft)} ج.م
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Card 3: الضريبة */}
-              <Card
-                onClick={togglePrivacy}
-                className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all cursor-pointer group"
-              >
-                <div className="h-1.5 bg-gradient-to-r from-rose-500 to-red-500" />
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[11px] font-bold">
-                      استقطاع ضريبي
-                    </Badge>
-                    <div className="w-9 h-9 rounded-xl bg-rose-100/70 text-rose-600 flex items-center justify-center">
-                      <Receipt className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <CardTitle className="text-base font-black text-slate-900 mt-2">
-                    الضريبة
-                  </CardTitle>
-                  <p className="text-xs text-slate-500">
-                    المسمى في القاعدة: <code className="text-rose-700 font-mono text-[11px]">p_taxe</code>
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[11px] text-slate-400 font-bold">قيمة ضريبة الحافز</p>
-                      <span className="text-[11px] text-rose-600 font-bold font-mono">
-                        {getPercentage(data.pTaxe, data.gft)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={`text-2xl sm:text-3xl font-black text-rose-600 font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
-                          showValues ? "blur-0 opacity-100 scale-100" : "blur-md opacity-30 scale-95"
-                        }`}
-                      >
-                        {formatCurrency(data.pTaxe)}
-                      </span>
-                      <span className="text-sm font-bold text-slate-500">ج.م</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed bg-rose-50/40 rounded-xl p-3 border border-rose-100/60">
-                    الضريبة القانونية المستقطعة من وعاء الحافز وفقاً للشرائح الضريبية المقررة بقانون الضرائب.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+          
           </>
         )}
       </div>

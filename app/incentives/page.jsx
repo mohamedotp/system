@@ -283,14 +283,13 @@ export default function IncentivesPage() {
                     صافي الحافز المستحق للصرف
                   </div>
                   <h3 className="text-slate-400 text-xs sm:text-sm mt-1">
-                    المبلغ الفعلي القابل للتحويل بعد خصم كافة المعاشات والضرائب
-                  </h3>
+                                     المبلغ الفعلي القابل للتحويل بعد خصم كافة المعاشات والضرائب
+                      </h3>
 
                   <div className="flex items-baseline gap-3 mt-4">
                     <div
-                      className={`text-4xl sm:text-6xl font-black tracking-tight text-white transition-all duration-300 font-mono ${
-                        showValues ? "" : "blur-lg select-none"
-                      }`}
+                      className={`text-4xl sm:text-6xl font-black tracking-tight text-white transition-all duration-300 font-mono ${showValues ? "" : "blur-lg select-none"
+                        }`}
                     >
                       {formatCurrency(data.net)}
                     </div>
@@ -308,9 +307,8 @@ export default function IncentivesPage() {
                       إجمالي الحافز
                     </div>
                     <p
-                      className={`text-base sm:text-lg font-black text-white font-mono mt-1 ${
-                        showValues ? "" : "blur-sm select-none"
-                      }`}
+                      className={`text-base sm:text-lg font-black text-white font-mono mt-1 ${showValues ? "" : "blur-sm select-none"
+                        }`}
                     >
                       {formatCurrency(data.gft)} <span className="text-xs text-slate-400 font-normal">ج.م</span>
                     </p>
@@ -322,9 +320,8 @@ export default function IncentivesPage() {
                       إجمالي الاستقطاعات
                     </div>
                     <p
-                      className={`text-base sm:text-lg font-black text-white font-mono mt-1 ${
-                        showValues ? "" : "blur-sm select-none"
-                      }`}
+                      className={`text-base sm:text-lg font-black text-white font-mono mt-1 ${showValues ? "" : "blur-sm select-none"
+                        }`}
                     >
                       {formatCurrency(data.totalDeductions)} <span className="text-xs text-slate-400 font-normal">ج.م</span>
                     </p>
@@ -357,326 +354,8 @@ export default function IncentivesPage() {
               </div>
             </div>
 
-            {/* 3 Core Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* Card 1: قيمة الحافز */}
-              <Card className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all">
-                <div className="h-1.5 bg-gradient-to-r from-amber-400 to-amber-500" />
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[11px] font-bold">
-                      استحقاق
-                    </Badge>
-                    <div className="w-9 h-9 rounded-xl bg-amber-100/70 text-amber-600 flex items-center justify-center">
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <CardTitle className="text-base font-black text-slate-900 mt-2">
-                    قيمة الحافز
-                  </CardTitle>
-                  <p className="text-xs text-slate-500">
-                    المسمى البرمجي في النظام: <code className="text-amber-700 font-mono text-[11px]">gft</code>
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <p className="text-[11px] text-slate-400 font-bold mb-1">المبلغ الإجمالي المعتمد</p>
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={`text-2xl sm:text-3xl font-black text-slate-900 font-mono ${
-                          showValues ? "" : "blur-sm select-none"
-                        }`}
-                      >
-                        {formatCurrency(data.gft)}
-                      </span>
-                      <span className="text-sm font-bold text-slate-500">ج.م</span>
-                    </div>
-                  </div>
 
-                  <p className="text-xs text-slate-600 leading-relaxed bg-amber-50/40 rounded-xl p-3 border border-amber-100/60">
-                    يمثل هذا الحقل القيمة الإجمالية للحافز المستحق للعامل قبل خصم اشتراكات التأمينات والضرائب المقررة.
-                  </p>
-                </CardContent>
-              </Card>
 
-              {/* Card 2: المعاشات */}
-              <Card className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all">
-                <div className="h-1.5 bg-gradient-to-r from-indigo-500 to-blue-500" />
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px] font-bold">
-                      استقطاع تأميني
-                    </Badge>
-                    <div className="w-9 h-9 rounded-xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <CardTitle className="text-base font-black text-slate-900 mt-2">
-                    المعاشات
-                  </CardTitle>
-                  <p className="text-xs text-slate-500">
-                    المعادلة: <code className="text-indigo-700 font-mono text-[11px]">g_prs_bas_ins + g_prs_end_pnft</code>
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[11px] text-slate-400 font-bold">إجمالي استقطاع المعاشات</p>
-                      <span className="text-[11px] text-indigo-600 font-bold font-mono">
-                        {getPercentage(data.pensions, data.gft)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={`text-2xl sm:text-3xl font-black text-rose-600 font-mono ${
-                          showValues ? "" : "blur-sm select-none"
-                        }`}
-                      >
-                        {formatCurrency(data.pensions)}
-                      </span>
-                      <span className="text-sm font-bold text-slate-500">ج.م</span>
-                    </div>
-                  </div>
-
-                  {/* Sub-breakdown if available */}
-                  <div className="space-y-1.5 bg-slate-50/80 rounded-xl p-2.5 text-xs border border-slate-100">
-                    <div className="flex justify-between items-center text-slate-600 py-1 border-b border-slate-200/60">
-                      <span className="text-[11px]">حصة المعاش الأساسي:</span>
-                      <span className={`font-mono font-bold text-slate-800 ${showValues ? "" : "blur-sm"}`}>
-                        {formatCurrency(data.gPrsBasIns)} ج.م
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-600 py-1">
-                      <span className="text-[11px]">مكافأة نهاية الخدمة (1%):</span>
-                      <span className={`font-mono font-bold text-slate-800 ${showValues ? "" : "blur-sm"}`}>
-                        {formatCurrency(data.gPrsEndPnft)} ج.م
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Card 3: الضريبة */}
-              <Card className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-all">
-                <div className="h-1.5 bg-gradient-to-r from-rose-500 to-red-500" />
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[11px] font-bold">
-                      استقطاع ضريبي
-                    </Badge>
-                    <div className="w-9 h-9 rounded-xl bg-rose-100/70 text-rose-600 flex items-center justify-center">
-                      <Receipt className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <CardTitle className="text-base font-black text-slate-900 mt-2">
-                    الضريبة
-                  </CardTitle>
-                  <p className="text-xs text-slate-500">
-                    المسمى البرمجي في النظام: <code className="text-rose-700 font-mono text-[11px]">p_taxe</code>
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[11px] text-slate-400 font-bold">قيمة ضريبة الحافز</p>
-                      <span className="text-[11px] text-rose-600 font-bold font-mono">
-                        {getPercentage(data.pTaxe, data.gft)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={`text-2xl sm:text-3xl font-black text-rose-600 font-mono ${
-                          showValues ? "" : "blur-sm select-none"
-                        }`}
-                      >
-                        {formatCurrency(data.pTaxe)}
-                      </span>
-                      <span className="text-sm font-bold text-slate-500">ج.م</span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-600 leading-relaxed bg-rose-50/40 rounded-xl p-3 border border-rose-100/60">
-                    الضريبة القانونية المستقطعة من وعاء الحافز وفقاً للشرائح الضريبية المقررة وقانون الضرائب المعمول به.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Detailed Table for Print and Quick Review */}
-            <Card className="border border-slate-200/90 shadow-sm bg-white rounded-3xl overflow-hidden">
-              <CardHeader className="border-b border-slate-100 pb-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base sm:text-lg font-black text-slate-900">
-                      جدول بنود احتساب الحافز
-                    </CardTitle>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      توضيح شامل لكل بند من البنود الواردة في استعلام قاعدة البيانات
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-slate-600 border-slate-200">
-                    رقم الحافز: {data.pnfNumber || 1}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
-                <table className="w-full text-right text-xs sm:text-sm">
-                  <thead className="bg-slate-50/80 text-slate-600 border-b border-slate-200 font-bold">
-                    <tr>
-                      <th className="py-3 px-4">البند والمسمى</th>
-                      <th className="py-3 px-4">الحقل في القاعدة</th>
-                      <th className="py-3 px-4">النوع</th>
-                      <th className="py-3 px-4 text-center">النسبة</th>
-                      <th className="py-3 px-4 text-left">المبلغ المستحق</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {/* GFT */}
-                    <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-amber-500" />
-                          <span>قيمة الحافز (إجمالي الاستحقاق)</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500">gft</td>
-                      <td className="py-3.5 px-4">
-                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-                          + إضافة
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-mono text-slate-500">100%</td>
-                      <td className="py-3.5 px-4 text-left font-mono font-bold text-emerald-600">
-                        <span className={showValues ? "" : "blur-sm select-none"}>
-                          {formatCurrency(data.gft)}
-                        </span>{" "}
-                        ج.م
-                      </td>
-                    </tr>
-
-                    {/* Pensions */}
-                    <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                          <span>المعاشات (تأمينات اجتماعية ونهاية خدمة)</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
-                        g_prs_bas_ins + g_prs_end_pnft
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">
-                          - استقطاع
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-mono text-slate-500">
-                        {getPercentage(data.pensions, data.gft)}
-                      </td>
-                      <td className="py-3.5 px-4 text-left font-mono font-bold text-rose-600">
-                        <span className={showValues ? "" : "blur-sm select-none"}>
-                          {formatCurrency(data.pensions)}
-                        </span>{" "}
-                        ج.م
-                      </td>
-                    </tr>
-
-                    {/* Tax */}
-                    <tr className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-rose-500" />
-                          <span>الضريبة (ضريبة كسب العمل)</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500">p_taxe</td>
-                      <td className="py-3.5 px-4">
-                        <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">
-                          - استقطاع
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-mono text-slate-500">
-                        {getPercentage(data.pTaxe, data.gft)}
-                      </td>
-                      <td className="py-3.5 px-4 text-left font-mono font-bold text-rose-600">
-                        <span className={showValues ? "" : "blur-sm select-none"}>
-                          {formatCurrency(data.pTaxe)}
-                        </span>{" "}
-                        ج.م
-                      </td>
-                    </tr>
-
-                    {/* Net */}
-                    <tr className="bg-emerald-50/40 font-bold">
-                      <td className="py-4 px-4 font-black text-slate-950">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                          <span>صافي الحافز (المبلغ المستحق للصرف)</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 font-mono text-xs text-emerald-800">net</td>
-                      <td className="py-4 px-4">
-                        <Badge className="bg-emerald-600 text-white border-none text-[10px]">
-                          صافي
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4 text-center font-mono text-emerald-800">
-                        {getPercentage(data.net, data.gft)}
-                      </td>
-                      <td className="py-4 px-4 text-left font-mono font-black text-emerald-700 text-base">
-                        <span className={showValues ? "" : "blur-sm select-none"}>
-                          {formatCurrency(data.net)}
-                        </span>{" "}
-                        ج.م
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </CardContent>
-              <CardFooter className="bg-slate-50/50 py-3 px-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-2">
-                <span className="flex items-center gap-1.5">
-                  <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
-                  يتم تطبيق الاستقطاعات آلياً بناءً على اللوائح الإدارية والقوانين المالية المنظمة.
-                </span>
-                <span className="text-[11px] font-mono text-slate-400">
-                  تاريخ الطباعة: {new Date().toLocaleDateString("ar-EG")}
-                </span>
-              </CardFooter>
-            </Card>
-
-            {/* Terms Explanations (راحة المستخدم وفهم المصطلحات) */}
-            <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-amber-500" />
-                دليل توضيح المصطلحات المالية للحافز
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100/80">
-                  <span className="font-bold text-amber-800 block mb-1">
-                    1. قيمة الحافز (gft):
-                  </span>
-                  إجمالي المبلغ التقديري المخصص للحافز طبقاً لمعدلات الإنتاج أو تقييم الأداء المعتمد قبل إجراء أي خصومات.
-                </div>
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100/80">
-                  <span className="font-bold text-indigo-800 block mb-1">
-                    2. المعاشات (g_prs_bas_ins + g_prs_end_pnft):
-                  </span>
-                  حصة العامل المستقطعة لحساب التأمينات الاجتماعية عن الحافز، مضافاً إليها نسبة مكافأة نهاية الخدمة (1%).
-                </div>
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100/80">
-                  <span className="font-bold text-rose-800 block mb-1">
-                    3. الضريبة (p_taxe):
-                  </span>
-                  ضريبة المرتبات المقررة قانوناً على المبالغ الإضافية والتي يتم توريدها لمصلحة الضرائب المصرية.
-                </div>
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100/80">
-                  <span className="font-bold text-emerald-800 block mb-1">
-                    4. صافي الحافز (net):
-                  </span>
-                  المبلغ الصافي النهائي المودع في الحساب البنكي للموظف، وهو ناتج طرح (المعاشات + الضريبة) من قيمة الحافز.
-                </div>
-              </div>
-            </div>
           </>
         )}
       </div>

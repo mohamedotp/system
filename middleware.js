@@ -9,7 +9,7 @@ export async function middleware(request) {
     const { pathname } = request.nextUrl;
 
     // 1. المسارات المحمية
-    const protectedRoutes = ["/employee", "/import", "/export", "/memo/create", "/memo/templates", "/products"];
+    const protectedRoutes = ["/employee", "/import", "/export", "/memo/create", "/memo/templates", "/products", "/incentives"];
     const isProtected = protectedRoutes.some(route => pathname.startsWith(route));
 
     if (isProtected) {
@@ -48,5 +48,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-    matcher: ["/employee/:path*", "/login", "/register", "/import", "/import/:path*", "/export", "/export/:path*", "/products", "/products/:path*", "/memo/create", "/memo/create/:path*", "/memo/templates", "/memo/templates/:path*"],
+    matcher: ["/employee/:path*", "/login", "/register", "/import", "/import/:path*", "/export", "/export/:path*", "/products", "/products/:path*", "/memo/create", "/memo/create/:path*", "/memo/templates", "/memo/templates/:path*", "/incentives", "/incentives/:path*"],
 };

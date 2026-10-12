@@ -33,7 +33,9 @@ import {
   Volume2,
   FileSignature,
   Monitor,
-  Layers
+  Layers,
+  Award,
+  Gift
 } from "lucide-react";
 import { useNotificationSound } from "@/lib/sounds";
 
@@ -347,7 +349,29 @@ export default function Navbar() {
                   <Wallet className="w-4 h-4 text-blue-500" />
                   <span>كشوف المرتبات</span>
                 </Link>
+                <Link href="/incentives" className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-amber-600/20 transition-colors border-t border-slate-800/50">
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>الحوافز</span>
+                </Link>
               </div>
+            </li>
+          </ul>
+
+          <ul className="hidden md:flex items-center gap-1">
+            <li>
+              <Link href="/incentives">
+                <Button
+                  variant="ghost"
+                  className={`gap-2 font-medium h-10 transition-colors ${
+                    pathname === "/incentives"
+                      ? "text-amber-400 bg-amber-500/10 border border-amber-500/30 font-bold"
+                      : "text-slate-300 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>الحوافز</span>
+                </Button>
+              </Link>
             </li>
           </ul>
 
@@ -513,6 +537,14 @@ export default function Navbar() {
           <Link href="/notifications" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-between p-3 text-slate-300 hover:bg-blue-600/20 rounded-lg">
             <div className="flex items-center gap-3 flex-row-reverse"><MessageSquare className="w-5 h-5" /><span>التنبيهات</span></div>
             {unreadCount > 0 && <span className="bg-red-600 px-2 rounded-full text-xs font-bold text-white">{unreadCount}</span>}
+          </Link>
+          <Link href="/employee" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 text-slate-300 hover:bg-blue-600/20 rounded-lg flex-row-reverse">
+            <Wallet className="w-4 h-4 text-blue-500" />
+            <span>كشوف المرتبات</span>
+          </Link>
+          <Link href="/incentives" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 text-amber-400 font-bold hover:bg-amber-600/10 rounded-lg flex-row-reverse">
+            <Award className="w-4 h-4 text-amber-400" />
+            <span>الحوافز</span>
           </Link>
           <Link href="/import" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 text-slate-300 hover:bg-blue-600/20 rounded-lg flex-row-reverse"><File className="w-5 h-5" /><span>الوارد</span></Link>
           <Link href="/export" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 p-3 text-slate-300 hover:bg-emerald-600/20 rounded-lg flex-row-reverse"><Send className="w-5 h-5" /><span>الصادر</span></Link>

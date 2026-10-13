@@ -36,8 +36,6 @@ export default function IncentivesPage() {
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  // القيمة الافتراضية مغلقة (بلور) لحماية الخصوصية
-  const [showValues, setShowValues] = useState(false);
   const router = useRouter();
 
   const fetchIncentives = async () => {
@@ -70,18 +68,6 @@ export default function IncentivesPage() {
   useEffect(() => {
     fetchIncentives();
   }, []);
-
-  const togglePrivacy = () => {
-    setShowValues((prev) => {
-      const next = !prev;
-      if (next) {
-        toast.success("  كشف الأرقام", { duration: 1800 });
-      } else {
-        toast.info("  إخفاء الأرقام", { duration: 1800 });
-      }
-      return next;
-    });
-  };
 
   const formatCurrency = (val) => {
     if (val === undefined || val === null) return "0.00";
@@ -244,54 +230,27 @@ export default function IncentivesPage() {
                     المبلغ الفعلي بعد خصم كافة المعاشات والضرائب
                   </h3>
 
-                  {/* Net Amount with clickable toggle & smooth unblur effect */}
-                  <div
-                    onClick={togglePrivacy}
-                    className="group cursor-pointer inline-flex items-baseline gap-3 mt-4 select-none relative"
-                    title={showValues ? "انقر للإخفاء" : "انقر لإظهار المبلغ"}
-                  >
-                    <div
-                      className={`text-4xl sm:text-6xl font-black tracking-tight text-white font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
-                        showValues
-                          ? "blur-0 opacity-100 scale-100 drop-shadow-[0_0_25px_rgba(16,185,129,0.35)]"
-                          : "blur-xl opacity-30 scale-95 hover:opacity-50"
-                      }`}
-                    >
+                  {/* Net Amount */}
+                  <div className="inline-flex items-baseline gap-3 mt-4 select-none relative">
+                    <div className="text-4xl sm:text-6xl font-black tracking-tight text-white font-mono drop-shadow-[0_0_25px_rgba(16,185,129,0.35)]">
                       {formatCurrency(data.net)}
                     </div>
-                    <span className="text-xl sm:text-2xl font-bold text-emerald-400 transition-opacity duration-500">
+                    <span className="text-xl sm:text-2xl font-bold text-emerald-400">
                       ج.م
                     </span>
-
-                    {/* Hint overlay on blur */}
-                    {/* {!showValues && (
-                      <span className="absolute -bottom-6 right-0 text-[11px] font-bold text-amber-400/90 flex items-center gap-1 group-hover:underline">
-                        <Eye className="w-3 h-3" />
-                        اضغط للكشف
-                      </span>
-                    )} */}
                   </div>
                 </div>
 
-                {/* Quick stats column with smooth unblur transition */}
+                {/* Quick stats column */}
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 md:border-r md:border-slate-800 md:pr-8 min-w-[240px]">
                   {/* Gross Incentive */}
-                  <div
-                    onClick={togglePrivacy}
-                    className="bg-slate-800/60 hover:bg-slate-800/90 cursor-pointer backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5 transition-all group"
-                  >
+                  <div className="bg-slate-800/60 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5 transition-all">
                     <div className="flex items-center gap-1.5 text-[11px] text-amber-400 font-bold">
                       <TrendingUp className="w-3.5 h-3.5" />
                       إجمالي الحافز
                     </div>
                     <p className="text-base sm:text-lg font-black text-white font-mono mt-1 overflow-hidden">
-                      <span
-                        className={`inline-block transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
-                          showValues
-                            ? "blur-0 opacity-100 scale-100"
-                            : "blur-md opacity-30 scale-90"
-                        }`}
-                      >
+                      <span className="inline-block">
                         {formatCurrency(data.gft)}
                       </span>{" "}
                       <span className="text-xs text-slate-400 font-normal">ج.م</span>
@@ -299,22 +258,13 @@ export default function IncentivesPage() {
                   </div>
 
                   {/* Total Deductions */}
-                  <div
-                    onClick={togglePrivacy}
-                    className="bg-slate-800/60 hover:bg-slate-800/90 cursor-pointer backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5 transition-all group"
-                  >
+                  <div className="bg-slate-800/60 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3.5 transition-all">
                     <div className="flex items-center gap-1.5 text-[11px] text-red-400 font-bold">
                       <ArrowDownRight className="w-3.5 h-3.5" />
                       إجمالي الاستقطاعات
                     </div>
                     <p className="text-base sm:text-lg font-black text-white font-mono mt-1 overflow-hidden">
-                      <span
-                        className={`inline-block transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${
-                          showValues
-                            ? "blur-0 opacity-100 scale-100"
-                            : "blur-md opacity-30 scale-90"
-                        }`}
-                      >
+                      <span className="inline-block">
                         {formatCurrency(data.totalDeductions)}
                       </span>{" "}
                       <span className="text-xs text-slate-400 font-normal">ج.م</span>
@@ -328,16 +278,9 @@ export default function IncentivesPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm font-bold">
                     {/* GFT */}
-                    <span
-                      onClick={togglePrivacy}
-                      className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-amber-500/20 transition-all"
-                    >
+                    <span className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2.5 py-1 rounded-lg">
                       قيمة الحافز (
-                      <span
-                        className={`font-mono inline-block transition-all duration-500 ${
-                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
-                        }`}
-                      >
+                      <span className="font-mono inline-block">
                         {formatCurrency(data.gft)}
                       </span>
                       )
@@ -346,16 +289,9 @@ export default function IncentivesPage() {
                     <Minus className="w-3.5 h-3.5 text-slate-500" />
 
                     {/* Pensions */}
-                    <span
-                      onClick={togglePrivacy}
-                      className="bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-indigo-500/20 transition-all"
-                    >
+                    <span className="bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-lg">
                       المعاشات (
-                      <span
-                        className={`font-mono inline-block transition-all duration-500 ${
-                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
-                        }`}
-                      >
+                      <span className="font-mono inline-block">
                         {formatCurrency(data.pensions)}
                       </span>
                       )
@@ -364,16 +300,9 @@ export default function IncentivesPage() {
                     <Minus className="w-3.5 h-3.5 text-slate-500" />
 
                     {/* Taxes */}
-                    <span
-                      onClick={togglePrivacy}
-                      className="bg-rose-500/10 text-rose-300 border border-rose-500/20 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-rose-500/20 transition-all"
-                    >
+                    <span className="bg-rose-500/10 text-rose-300 border border-rose-500/20 px-2.5 py-1 rounded-lg">
                       الضريبة (
-                      <span
-                        className={`font-mono inline-block transition-all duration-500 ${
-                          showValues ? "blur-0 opacity-100" : "blur-xs opacity-40"
-                        }`}
-                      >
+                      <span className="font-mono inline-block">
                         {formatCurrency(data.pTaxe)}
                       </span>
                       )
@@ -382,16 +311,9 @@ export default function IncentivesPage() {
                     <Equal className="w-3.5 h-3.5 text-slate-500" />
 
                     {/* Net */}
-                    <span
-                      onClick={togglePrivacy}
-                      className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-lg cursor-pointer hover:bg-emerald-500/30 transition-all"
-                    >
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-lg">
                       الصافي (
-                      <span
-                        className={`font-mono inline-block transition-all duration-500 ${
-                          showValues ? "blur-0 opacity-100 font-black" : "blur-xs opacity-40"
-                        }`}
-                      >
+                      <span className="font-mono inline-block font-black">
                         {formatCurrency(data.net)}
                       </span>
                       )

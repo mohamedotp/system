@@ -507,6 +507,9 @@ function PDFViewerContent() {
     const [selectedSector, setSelectedSector] = useState(null); // '1', '2', ..., 'all', or null
     const [sigSearchQuery, setSigSearchQuery] = useState("");
     const [isSigModalOpen, setIsSigModalOpen] = useState(false);
+    // حالة النافذة العلوية لاختيار نوع التأشيرة للقطاع (للمستخدمين 1712، 1714، 1716)
+    const [topDeptModal, setTopDeptModal] = useState(null);
+    const isAllowedSectors = user ? ALLOWED_SECTOR_USERS.includes(String(user.empNum).trim()) : false;
 
     const handleSelectSignature = (sig) => {
         setHoveredSig(null);
@@ -1110,45 +1113,67 @@ function PDFViewerContent() {
     return (
         <div className="min-h-screen bg-slate-900 flex flex-col h-screen overflow-hidden">
             {/* Header */}
-            <div className="bg-slate-800 border-b border-slate-700 p-4 shrink-0">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Button
-                            variant="ghost"
-                            onClick={() => {
-                                // محاولة إغلاق النافذة، لو مش نافع نرجع للصفحة السابقة
-                                if (window.opener) {
-                                    window.close();
-                                } else {
-                                    window.history.back();
-                                }
-                            }}
-                            className="text-white hover:bg-slate-700 font-bold "
-                        >
-                            <X className="w-5 h-5 ml-2" />
-                            إغلاق
-                        </Button>
-                        <div className="border-r border-slate-700 pr-4">
-                            {/* <h1 className="text-white font-black">عارض وموقع الملفات الذكي</h1> */}
-                            {docNo && <p className="text-blue-400 text-lg font-bold">مكاتبة رقم: {docNo}</p>}
-                            {/* Debug: Show signature count */}
-                            <div className="mt-1">
-                                {user && (
-                                    <span className="text-xs text-slate-400">
-                                        المستخدم: {user.empNum} |
-                                        التوقيع: {Object.keys(availableSignatures).length > 0
-                                            ? `${Object.values(availableSignatures).flat().length} متاح`
-                                            : 'لا يوجد'}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+            <div className="bg-slate-800 border-b border-slate-700 px-4 py-2.5 shrink-0 flex items-center justify-between z-30 shadow-md gap-4">
+                <div className="flex items-center gap-3 shrink-0">
+                    <Button
+                        variant="ghost"
+                        onClick={() => {
+                            if (window.opener) {
+                                window.close();
+                            } else {
+                                window.history.back();
+                            }
+                        }}
+                        className="text-white hover:bg-slate-700 font-bold"
+                    >
+                        <X className="w-5 h-5 ml-1.5" />
+                        إغلاق
+                    </Button>
+                    <div className="border-r border-slate-700 pr-3 flex items-center gap-3">
+                        {docNo && <span className="text-blue-400 text-base font-black whitespace-nowrap">مكاتبة رقم: {docNo}</span>}
+                        {user && (
+                            <span className="text-xs text-slate-400 whitespace-nowrap hidden sm:inline-block">
+                                المستخدم: {user.empNum}
+                            </span>
+                        )}
                     </div>
-
                 </div>
 
-                {/* Action Buttons in Header */}
-                <div className="flex items-center gap-3">
+                {/* Action Buttons in Header with Department Names */}
+                <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar py-0.5">
+                    {/* أزرار أسماء الأقسام بجانب تراجع / مسح للـ 1712، 1714، 1716 */}
+                    {isAllowedSectors && Object.keys(availableSignatures).length > 0 && (
+                        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700">
+                            {Object.entries(availableSignatures)
+                                .sort(([aKey], [bKey]) => {
+                                    const aIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === aKey || d.key === aKey);
+                                    const bIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === bKey || d.key === bKey);
+                                    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                                    if (aIdx !== -1) return -1;
+                                    if (bIdx !== -1) return 1;
+                                    return aKey.localeCompare(bKey);
+                                })
+                                .map(([groupId, stamps]) => {
+                                    const info = getGroupInfo(groupId);
+                                    const isCurrent = topDeptModal === groupId;
+                                    return (
+                                        <button
+                                            key={groupId}
+                                            onClick={() => setTopDeptModal(groupId)}
+                                            className={`text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap transition-all border cursor-pointer ${
+                                                isCurrent
+                                                    ? 'bg-blue-600 text-white border-blue-500 shadow-md ring-2 ring-blue-400/30'
+                                                    : 'bg-slate-700/60 hover:bg-slate-700 text-slate-200 hover:text-white border-slate-600/70 hover:border-slate-500'
+                                            }`}
+                                            title={`أختام ${info.label}`}
+                                        >
+                                            {info.shortLabel || info.label}
+                                        </button>
+                                    );
+                                })}
+                        </div>
+                    )}
+
                     {signature && isDragMode && (
                         <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-300">
                             <Button
@@ -1174,7 +1199,7 @@ function PDFViewerContent() {
                             variant="outline"
                             onClick={handleUnsign}
                             disabled={isUnsigning}
-                            className="border-red-500 text-red-500 hover:bg-red-500/10 font-black"
+                            className="border-red-500 text-red-500 hover:bg-red-500/10 font-black shrink-0"
                         >
                             {isUnsigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4 ml-2" />}
                             تراجع / مسح
@@ -1207,15 +1232,6 @@ function PDFViewerContent() {
                             </Button>
                         </>
                     )}
-
-                    {/* <Button
-                        variant="ghost"
-                        className="text-white hover:bg-slate-700"
-                        onClick={() => window.open(pdfUrl, '_blank')}
-                    >
-                        <Download className="w-4 h-4 ml-2" />
-                        تحميل
-                    </Button> */}
                 </div>
             </div>
 
@@ -1258,6 +1274,11 @@ function PDFViewerContent() {
 
                         {/* قطاعات وتواقيع */}
                         {(() => {
+                            // للمستخدمين المصرح لهم (1712، 1714، 1716): الأقسام معروضة في الشريط العلوي بالأعلى بجانب تراجع / مسح
+                            if (isAllowedSectors) {
+                                return null;
+                            }
+
                             if (Object.keys(availableSignatures).length === 0) {
                                 if (generalSignatures.length === 0) {
                                     return (
@@ -2096,6 +2117,89 @@ function PDFViewerContent() {
                                 variant="outline"
                                 onClick={() => setIsSigModalOpen(false)}
                                 className="rounded-xl px-5 text-xs font-bold cursor-pointer"
+                            >
+                                إغلاق
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* نافذة اختيار نوع التأشيرة للقطاع من الشريط العلوي (1712، 1714، 1716) */}
+            {topDeptModal && availableSignatures[topDeptModal] && (
+                <div
+                    className="fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    dir="rtl"
+                    onClick={() => setTopDeptModal(null)}
+                >
+                    <div
+                        className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* رأس النافذة */}
+                        <div className="p-5 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/50 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+                                    <FileSignature className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-base sm:text-lg text-slate-800 flex items-center gap-2">
+                                        <span>أختام وتأشيرات:</span>
+                                        <span className="text-blue-600">{getGroupInfo(topDeptModal).label}</span>
+                                    </h3>
+                                    <p className="text-xs text-slate-400 font-bold mt-0.5">
+                                        اختر نوع التأشيرة المطلوب وضعها على المستند
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setTopDeptModal(null)}
+                                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* قائمة أنواع التأشيرات */}
+                        <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-2.5">
+                            {availableSignatures[topDeptModal].map((sig) => {
+                                const action = sig.actionInfo || getActionInfo(sig.actionId, sig.FILE_NAME);
+                                return (
+                                    <button
+                                        key={sig.FILE_NAME}
+                                        onClick={() => {
+                                            handleSelectSignature(sig);
+                                            setTopDeptModal(null);
+                                        }}
+                                        className="w-full p-4 bg-slate-50 hover:bg-blue-50/80 border-2 border-slate-200 hover:border-blue-500 rounded-2xl transition-all duration-150 flex items-center justify-between group cursor-pointer text-right shadow-xs hover:shadow-md"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-2xl p-2 rounded-xl bg-white border border-slate-200/60 shadow-xs group-hover:scale-110 transition-transform">
+                                                {action.icon || '⚡'}
+                                            </span>
+                                            <div>
+                                                <h4 className="font-black text-sm text-slate-800 group-hover:text-blue-600 transition-colors">
+                                                    {action.label}
+                                                </h4>
+                                                <p className="text-[11px] text-slate-400 font-bold mt-0.5">
+                                                    {sig.FILE_NAME}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className="text-xs font-black text-blue-600 bg-blue-100/70 group-hover:bg-blue-600 group-hover:text-white px-3.5 py-1.5 rounded-xl transition-colors whitespace-nowrap">
+                                            اختيار للتوقيع ✍️
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* تذييل النافذة */}
+                        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => setTopDeptModal(null)}
+                                className="rounded-xl px-4 text-xs font-bold"
                             >
                                 إغلاق
                             </Button>

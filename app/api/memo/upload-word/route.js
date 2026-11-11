@@ -67,7 +67,7 @@ export async function POST(req) {
         const day = nowDate.getDate().toString().padStart(2, '0');
         const dateStr = `${day}-${month}-${year}`;
 
-        const baseNetworkPath = `\\\\192.168.13.12\\homes\\DOCUMENTS`;
+        const baseNetworkPath = `\\\\192.168.13.230\\homes\\DOCUMENTS`;
         const dynamicFolder = `${baseNetworkPath}\\${year}\\${month}\\${day}\\${currentEmpNum}`;
         const fileName = `${newDocNo}_${docDescE}_${dateStr}`;
 

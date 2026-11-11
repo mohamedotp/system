@@ -59,7 +59,7 @@ export async function POST(req) {
         const day = now.getDate().toString().padStart(2, '0');
         const dateStr = `${day}-${month}-${year}`;
 
-        const baseNetworkPath = `\\\\192.168.13.12\\homes\\DOCUMENTS`;
+        const baseNetworkPath = `\\\\192.168.13.230\\homes\\DOCUMENTS`;
         const dynamicFolder = `${baseNetworkPath}\\${year}\\${month}\\${day}\\${currentEmpNum}`;
         const fileName = `${newDocNo}_${docDescE}_${dateStr}`;
         let finalExtension = '.docm';
@@ -72,7 +72,7 @@ export async function POST(req) {
             let templatePath = null;
 
             for (const ext of extensions) {
-                const checkPath = `\\\\192.168.13.12\\homes\\TAMPLET\\${docDescE}${ext}`;
+                const checkPath = `\\\\192.168.13.230\\homes\\TAMPLET\\${docDescE}${ext}`;
                 if (fs.existsSync(checkPath)) {
                     templatePath = checkPath;
                     finalExtension = ext;
@@ -83,7 +83,7 @@ export async function POST(req) {
             if (!templatePath) {
                 const fallbacks = ['TAMPLET.docm', 'EMPTY_DOC.docm', 'TAMPLET.docx'];
                 for (const fallback of fallbacks) {
-                    const checkPath = `\\\\192.168.13.12\\homes\\TAMPLET\\${fallback}`;
+                    const checkPath = `\\\\192.168.13.230\\homes\\TAMPLET\\${fallback}`;
                     if (fs.existsSync(checkPath)) {
                         templatePath = checkPath;
                         finalExtension = fallback.endsWith('.docx') ? '.docx' : '.docm';

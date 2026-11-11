@@ -18,11 +18,11 @@ try {
     }
 
     if ($u -like 'C:\Archives*') {
-        $u = $u -replace '^C:\\Archives', '\\192.168.13.12\homes'
+        $u = $u -replace '^C:\\Archives', '\\192.168.13.230\homes'
     }
     $allowed = @(
-        '\\192.168.13.12\homes',
-        '\\192.168.13.11\e\it_dept'
+        '\\192.168.13.230\homes',
+        '\\192.168.13.230\homest'
     )
     $isAllowed = $false
     foreach ($prefix in $allowed) {

@@ -5,7 +5,7 @@ import { getSession } from "@/lib/auth";
 
 // ✅ Allowlist: فقط المسارات المسموح بها
 const ALLOWED_ROOTS = [
-    "\\\\192.168.13.12\\homes\\",
+    "\\\\192.168.13.230\\homes\\",
     "C:\\Archives\\"
 ];
 

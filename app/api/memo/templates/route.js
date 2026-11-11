@@ -8,7 +8,7 @@ import { exec } from "child_process";
 import os from "os";
 
 const execPromise = util.promisify(exec);
-const TEMPLATE_DIR = `\\\\192.168.13.12\\homes\\TAMPLET`;
+const TEMPLATE_DIR = `\\\\192.168.13.230\\homes\\TAMPLET`;
 const EMPTY_DOC_PATH = path.join(TEMPLATE_DIR, "EMPTY_DOC_WEB.docm"); // للمحافظة على التوافقية لو احتجناه
 
 export async function GET(req) {

@@ -19,15 +19,450 @@ import {
     Type,
     Plus,
     Minus,
+    Search,
+    ChevronRight,
+    ChevronLeft,
+    Maximize2,
+    Layers,
+    Factory,
+    Landmark,
+    Building2,
+    Briefcase,
+    Wrench,
+    Folder,
+    Eye,
+    Shield,
+    Building,
+    Users,
+    UserCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import Draggable from "react-draggable";
 
-const STAMP_GROUPS = {
-    '1': { label: ' اختام للعرض', color: 'blue', bg: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-200' },
-    '2': { label: 'اختام اتخاذ اللازم ', color: 'emerald', bg: 'bg-emerald-600', text: 'text-emerald-600', border: 'border-emerald-200' },
-    '3': { label: 'اختام اخرى', color: 'slate', bg: 'bg-slate-700', text: 'text-slate-700', border: 'border-slate-200' },
-    'other': { label: 'أختام أخرى', color: 'slate', bg: 'bg-slate-500', text: 'text-slate-500', border: 'border-slate-200' }
+const DEPARTMENT_DEFINITIONS = [
+    {
+        id: '1',
+        key: 'deputy',
+        label: 'نائب ر.م.ا',
+        shortLabel: 'نائب ر.م.ا',
+        desc: 'أختام وتأشيرات نائب رئيس مجلس الإدارة',
+        icon: Landmark,
+        color: 'indigo',
+        badgeBg: 'bg-indigo-100 text-indigo-900 border-indigo-200 font-bold',
+        activeBtn: 'bg-indigo-700 text-white shadow-md shadow-indigo-600/25',
+        cardBg: 'from-indigo-50/90 via-white to-purple-50/40 hover:border-indigo-400 border-indigo-200 ring-1 ring-indigo-400/20',
+        iconBg: 'bg-indigo-700 text-white',
+        keywords: ['نائب', 'نائب ر.م.ا', 'نائب رئيس', 'deputy']
+    },
+    {
+        id: '2',
+        key: 'contracts',
+        label: 'مستشار ر.م.ا للتعاقدات',
+        shortLabel: 'التعاقدات',
+        desc: 'أختام وتأشيرات مستشار ر.م.ا للتعاقدات',
+        icon: Briefcase,
+        color: 'purple',
+        badgeBg: 'bg-purple-100 text-purple-800 border-purple-200',
+        activeBtn: 'bg-purple-600 text-white shadow-md shadow-purple-500/25',
+        cardBg: 'from-purple-50/80 to-white hover:border-purple-300 border-purple-100',
+        iconBg: 'bg-purple-600 text-white',
+        keywords: ['تعاقد', 'تعاقدات', 'عقود', 'contracts']
+    },
+    {
+        id: '3',
+        key: 'cameras',
+        label: 'مستشار ر.م.ا للكاميرات',
+        shortLabel: 'الكاميرات',
+        desc: 'أختام وتأشيرات مستشار ر.م.ا للكاميرات',
+        icon: Eye,
+        color: 'indigo',
+        badgeBg: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+        activeBtn: 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25',
+        cardBg: 'from-indigo-50/80 to-white hover:border-indigo-300 border-indigo-100',
+        iconBg: 'bg-indigo-600 text-white',
+        keywords: ['كامير', 'كاميرات', 'camera', 'cameras', 'مراقبة']
+    },
+    {
+        id: '4',
+        key: 'research',
+        label: 'البحوث والمشروعات',
+        shortLabel: 'البحوث والمشروعات',
+        desc: 'أختام وتأشيرات إدارة البحوث والمشروعات',
+        icon: Layers,
+        color: 'teal',
+        badgeBg: 'bg-teal-100 text-teal-800 border-teal-200',
+        activeBtn: 'bg-teal-600 text-white shadow-md shadow-teal-500/25',
+        cardBg: 'from-teal-50/80 to-white hover:border-teal-300 border-teal-100',
+        iconBg: 'bg-teal-600 text-white',
+        keywords: ['بحوث', 'مشروع', 'مشروعات', 'research']
+    },
+    {
+        id: '5',
+        key: 'production',
+        label: 'قطاع الإنتاج',
+        shortLabel: 'الإنتاج',
+        desc: 'أختام وتأشيرات قطاع الإنتاج',
+        icon: Factory,
+        color: 'blue',
+        badgeBg: 'bg-blue-100 text-blue-800 border-blue-200',
+        activeBtn: 'bg-blue-600 text-white shadow-md shadow-blue-500/25',
+        cardBg: 'from-blue-50/80 to-white hover:border-blue-300 border-blue-100',
+        iconBg: 'bg-blue-600 text-white',
+        keywords: ['انتاج', 'إنتاج', 'production']
+    },
+    {
+        id: '6',
+        key: 'quality',
+        label: 'قطاع الجودة',
+        shortLabel: 'الجودة',
+        desc: 'أختام وتأشيرات إدارة وتوكيد الجودة',
+        icon: CheckCircle2,
+        color: 'emerald',
+        badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        activeBtn: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25',
+        cardBg: 'from-emerald-50/80 to-white hover:border-emerald-300 border-emerald-100',
+        iconBg: 'bg-emerald-600 text-white',
+        keywords: ['جود', 'جودة', 'quality']
+    },
+    {
+        id: '7',
+        key: 'finance',
+        label: '  القطاع المالى ',
+        shortLabel: 'المالي',
+        desc: 'أختام وتأشيرات قطاع الشئون المالية والحسابات',
+        icon: Landmark,
+        color: 'emerald',
+        badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        activeBtn: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25',
+        cardBg: 'from-emerald-50/80 to-white hover:border-emerald-300 border-emerald-100',
+        iconBg: 'bg-emerald-600 text-white',
+        keywords: ['مالي', 'مالية', 'حسابات', 'finance']
+    },
+    {
+        id: '8',
+        key: 'commercial',
+        label: ' القطاع التجارى',
+        shortLabel: 'التجاري',
+        desc: 'أختام وتأشيرات قطاع الشئون التجارية',
+        icon: Building2,
+        color: 'cyan',
+        badgeBg: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+        activeBtn: 'bg-cyan-600 text-white shadow-md shadow-cyan-500/25',
+        cardBg: 'from-cyan-50/80 to-white hover:border-cyan-300 border-cyan-100',
+        iconBg: 'bg-cyan-600 text-white',
+        keywords: ['تجار', 'تجاري', 'تجارية', 'commercial']
+    },
+    {
+        id: '9',
+        key: 'marketing',
+        label: 'الادارة العامة التسويق',
+        shortLabel: 'التسويق',
+        desc: 'أختام وتأشيرات إدارة التسويق والمبيعات',
+        icon: Layers,
+        color: 'rose',
+        badgeBg: 'bg-rose-100 text-rose-800 border-rose-200',
+        activeBtn: 'bg-rose-600 text-white shadow-md shadow-rose-500/25',
+        cardBg: 'from-rose-50/80 to-white hover:border-rose-300 border-rose-100',
+        iconBg: 'bg-rose-600 text-white',
+        keywords: ['تسويق', 'مبيعات', 'marketing']
+    },
+    {
+        id: '10',
+        key: 'security',
+        label: 'إدارة الأمن',
+        shortLabel: 'الأمن',
+        desc: 'أختام وتأشيرات إدارة الأمن والحراسة',
+        icon: Shield,
+        color: 'red',
+        badgeBg: 'bg-red-100 text-red-800 border-red-200',
+        activeBtn: 'bg-red-600 text-white shadow-md shadow-red-500/25',
+        cardBg: 'from-red-50/80 to-white hover:border-red-300 border-red-100',
+        iconBg: 'bg-red-600 text-white',
+        keywords: ['أمن', 'امن', 'حراسة', 'security']
+    },
+    {
+        id: '11',
+        key: 'admin',
+        label: ' الشئون الادارية',
+        shortLabel: 'الشئون الإدارية',
+        desc: 'أختام وتأشيرات قطاع الشئون الإدارية',
+        icon: Building,
+        color: 'amber',
+        badgeBg: 'bg-amber-100 text-amber-800 border-amber-200',
+        activeBtn: 'bg-amber-600 text-white shadow-md shadow-amber-500/25',
+        cardBg: 'from-amber-50/80 to-white hover:border-amber-300 border-amber-100',
+        iconBg: 'bg-amber-600 text-white',
+        keywords: ['اداري', 'إداري', 'ادارية', 'إدارية']
+    },
+    {
+        id: '12',
+        key: 'hr',
+        label: ' الموارد البشرية',
+        shortLabel: 'الموارد البشرية',
+        desc: 'أختام وتأشيرات الموارد البشرية وشئون العاملين',
+        icon: Users,
+        color: 'sky',
+        badgeBg: 'bg-sky-100 text-sky-800 border-sky-200',
+        activeBtn: 'bg-sky-600 text-white shadow-md shadow-sky-500/25',
+        cardBg: 'from-sky-50/80 to-white hover:border-sky-300 border-sky-100',
+        iconBg: 'bg-sky-600 text-white',
+        keywords: ['موارد', 'بشرية', 'عاملين', 'شئون عاملين', 'hr']
+    },
+    {
+        id: '13',
+        key: 'it',
+        label: 'إدارة نظم المعلومات',
+        shortLabel: 'نظم المعلومات',
+        desc: 'أختام وتأشيرات تكنولوجيا ونظم المعلومات',
+        icon: Folder,
+        color: 'blue',
+        badgeBg: 'bg-blue-100 text-blue-800 border-blue-200',
+        activeBtn: 'bg-blue-600 text-white shadow-md shadow-blue-500/25',
+        cardBg: 'from-blue-50/80 to-white hover:border-blue-300 border-blue-100',
+        iconBg: 'bg-blue-600 text-white',
+        keywords: ['نظم', 'معلومات', 'it', 'حاسب', 'تكنولوجيا']
+    },
+    {
+        id: '14',
+        key: 'legal',
+        label: 'الإدارة القانونية',
+        shortLabel: 'القانونية',
+        desc: 'أختام وتأشيرات الإدارة القانونية والتحقيقات',
+        icon: Briefcase,
+        color: 'slate',
+        badgeBg: 'bg-slate-200 text-slate-800 border-slate-300',
+        activeBtn: 'bg-slate-800 text-white shadow-md shadow-slate-600/25',
+        cardBg: 'from-slate-100 to-white hover:border-slate-300 border-slate-200',
+        iconBg: 'bg-slate-800 text-white',
+        keywords: ['قانون', 'قانوني', 'قانونية', 'تحقيقات', 'legal']
+    },
+    {
+        id: '15',
+        key: 'pr',
+        label: 'إدارة العلاقات العامة',
+        shortLabel: 'العلاقات العامة',
+        desc: 'أختام وتأشيرات إدارة العلاقات العامة والإعلام',
+        icon: Layers,
+        color: 'violet',
+        badgeBg: 'bg-violet-100 text-violet-800 border-violet-200',
+        activeBtn: 'bg-violet-600 text-white shadow-md shadow-violet-500/25',
+        cardBg: 'from-violet-50/80 to-white hover:border-violet-300 border-violet-100',
+        iconBg: 'bg-violet-600 text-white',
+        keywords: ['علاقات', 'علاقات عامة', 'pr', 'إعلام', 'اعلام']
+    },
+    {
+        id: '22',
+        key: 'tech_office',
+        label: 'المكتب الفني /المتابعه',
+        shortLabel: 'المكتب الفني /المتابعه',
+        desc: 'أختام وتأشيرات المكتب الفني / المتابعة',
+        icon: FileSignature,
+        color: 'orange',
+        badgeBg: 'bg-orange-100 text-orange-800 border-orange-200',
+        activeBtn: 'bg-orange-600 text-white shadow-md shadow-orange-500/25',
+        cardBg: 'from-orange-50/80 to-white hover:border-orange-300 border-orange-100',
+        iconBg: 'bg-orange-600 text-white',
+        keywords: ['مكتب فني', 'مكتب فنى', 'فني', 'فنى']
+    },
+    {
+        id: '23',
+        key: 'ayman',
+        label: 'م. أيمن رشدي',
+        shortLabel: 'م. أيمن رشدي',
+        desc: 'أختام وتأشيرات م. أيمن رشدي',
+        icon: UserCheck,
+        color: 'emerald',
+        badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        activeBtn: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25',
+        cardBg: 'from-emerald-50/80 to-white hover:border-emerald-300 border-emerald-100',
+        iconBg: 'bg-emerald-600 text-white',
+        keywords: ['ايمن', 'أيمن', 'رشدي', 'رشدى', 'ayman']
+    },
+    {
+        id: '18',
+        key: 'ghada',
+        label: 'م. غادة الجندي',
+        shortLabel: 'م. غادة الجندي',
+        desc: 'أختام وتأشيرات م. غادة الجندي',
+        icon: UserCheck,
+        color: 'teal',
+        badgeBg: 'bg-teal-100 text-teal-800 border-teal-200',
+        activeBtn: 'bg-teal-600 text-white shadow-md shadow-teal-500/25',
+        cardBg: 'from-teal-50/80 to-white hover:border-teal-300 border-teal-100',
+        iconBg: 'bg-teal-600 text-white',
+        keywords: ['غادة', 'غاده', 'الجندي', 'الجندى', 'ghada']
+    },
+    {
+        id: '19',
+        key: 'nehal',
+        label: 'م. نهال',
+        shortLabel: 'م. نهال',
+        desc: 'أختام وتأشيرات م. نهال',
+        icon: UserCheck,
+        color: 'pink',
+        badgeBg: 'bg-pink-100 text-pink-800 border-pink-200',
+        activeBtn: 'bg-pink-600 text-white shadow-md shadow-pink-500/25',
+        cardBg: 'from-pink-50/80 to-white hover:border-pink-300 border-pink-100',
+        iconBg: 'bg-pink-600 text-white',
+        keywords: ['نهال', 'nehal']
+    },
+    {
+        id: '20',
+        key: 'zerotech',
+        label: 'قطاع زيروتيك',
+        shortLabel: 'زيروتيك',
+        desc: 'أختام وتأشيرات زيروتيك',
+        icon: Factory,
+        color: 'cyan',
+        badgeBg: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+        activeBtn: 'bg-cyan-600 text-white shadow-md shadow-cyan-500/25',
+        cardBg: 'from-cyan-50/80 to-white hover:border-cyan-300 border-cyan-100',
+        iconBg: 'bg-cyan-600 text-white',
+        keywords: ['زيروتيك', 'زيرو', 'تيك', 'zerotech', 'zero']
+    }
+];
+
+// قائمة الموظفين المصرح لهم حصرياً برؤية والوصول إلى أختام القطاعات
+const ALLOWED_SECTOR_USERS = ['1712', '1714', '1716'];
+
+const getGroupInfo = (groupId) => {
+    const found = DEPARTMENT_DEFINITIONS.find(d => d.id === groupId || d.key === groupId);
+    if (found) return found;
+
+    return {
+        id: groupId,
+        key: groupId,
+        label: isNaN(groupId) ? `إدارة ${groupId}` : `إدارة رقم ${groupId}`,
+        shortLabel: `إدارة ${groupId}`,
+        desc: `أختام وتواقيع إدارة ${groupId}`,
+        icon: Folder,
+        color: 'slate',
+        badgeBg: 'bg-slate-100 text-slate-800 border-slate-200',
+        activeBtn: 'bg-slate-800 text-white shadow-md shadow-slate-600/25',
+        cardBg: 'from-slate-50 to-white hover:border-slate-300 border-slate-200',
+        iconBg: 'bg-slate-700 text-white'
+    };
+};
+
+// تعريف مسميات التأشيرات والأزرار بناءً على الرقم الفرعي أو الاسم
+const ACTION_DEFINITIONS = {
+    '1': {
+        label: 'اتخاذ اللازم',
+        fullLabel: 'لإتخاذ اللازم',
+        desc: 'تأشيرة اتخاذ اللازم',
+        icon: '⚡',
+        badgeBg: 'bg-blue-100 text-blue-700 border-blue-200',
+        activeBtn: 'bg-blue-600 text-white',
+        keywords: ['اتخاذ', 'لازم', 'لإتخاذ', 'اللازم']
+    },
+    '2': {
+        label: 'للعرض',
+        fullLabel: 'للعرض  ',
+        desc: 'تأشيرة للعرض',
+        icon: '📋',
+        badgeBg: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        activeBtn: 'bg-emerald-600 text-white',
+        keywords: ['عرض', 'للعرض']
+    },
+    '3': {
+        label: 'للدراسة والعرض',
+        fullLabel: ' للدراسة',
+        desc: 'تأشيرة للدراسة',
+        icon: '⏳',
+        badgeBg: 'bg-amber-100 text-amber-700 border-amber-200',
+        activeBtn: 'bg-amber-600 text-white',
+        keywords: ['متابعة', 'للمتابعة']
+    },
+    '4': {
+        label: ' للاحاطة  ',
+        fullLabel: 'للدراسة والعرض  ',
+        desc: 'تأشيرة للدراسة  والعرض',
+        icon: '🔍',
+        badgeBg: 'bg-purple-100 text-purple-700 border-purple-200',
+        activeBtn: 'bg-purple-600 text-white',
+        keywords: ['دراسة', 'رأي', 'ابداء', 'إبداء']
+    },
+    '5': {
+        label: 'للإفادة',
+        fullLabel: 'للإفادة بالرأي',
+        desc: 'تأشيرة للإفادة',
+        icon: '💬',
+        badgeBg: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+        activeBtn: 'bg-cyan-600 text-white',
+        keywords: ['افادة', 'إفادة']
+    },
+    '6': {
+        label: 'للحفظ',
+        fullLabel: 'للحفظ بالملف',
+        desc: 'تأشيرة للحفظ',
+        icon: '📁',
+        badgeBg: 'bg-slate-100 text-slate-700 border-slate-200',
+        activeBtn: 'bg-slate-700 text-white',
+        keywords: ['حفظ', 'للحفظ']
+    },
+    '7': {
+        label: 'للعلم والإحاطة',
+        fullLabel: 'للعلم والإحاطة',
+        desc: 'تأشيرة للعلم والإحاطة',
+        icon: '👁️',
+        badgeBg: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+        activeBtn: 'bg-indigo-600 text-white',
+        keywords: ['احاطة', 'إحاطة', 'علم']
+    },
+    '16': {
+        label: 'نظر مع الشكر',
+        fullLabel: 'تأشيرة نَظَر',
+        desc: 'ختم وتأشيرة نَظَر المعتمدة',
+        icon: '👁️',
+        badgeBg: 'bg-amber-100 text-amber-800 border-amber-300',
+        activeBtn: 'bg-amber-600 text-white',
+        keywords: ['نظر', 'نَظَر', 'nazar']
+    },
+    '17': {
+        label: 'تصدق',
+        fullLabel: 'تأشيرة تُصُدّق',
+        desc: 'ختم وتأشيرة تُصُدّق المعتمدة',
+        icon: '✅',
+        badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        activeBtn: 'bg-emerald-600 text-white',
+        keywords: ['تصدق', 'تُصُدّق', 'تصديق', 'يصدق', 'tasdiq']
+    }
+};
+
+const getActionInfo = (actionId, fileName = '') => {
+    const actStr = String(actionId || '').trim();
+
+    // 1. فحص بالرقم المباشر (مثل 1 -> اتخاذ اللازم، 2 -> للعرض، 16 -> نظر، 17 -> تصدق)
+    if (actStr && ACTION_DEFINITIONS[actStr]) {
+        return ACTION_DEFINITIONS[actStr];
+    }
+
+    // 2. فحص صريح لـ نظر وتصدق
+    const lower = (fileName || '').toLowerCase();
+    if (actStr === '16' || lower.includes('نظر') || lower.includes('nazar')) {
+        return ACTION_DEFINITIONS['16'];
+    }
+    if (actStr === '17' || lower.includes('تصدق') || lower.includes('تصديق') || lower.includes('tasdiq')) {
+        return ACTION_DEFINITIONS['17'];
+    }
+
+    // 3. فحص بالكلمات الدلالية في اسم الملف
+    for (const [id, def] of Object.entries(ACTION_DEFINITIONS)) {
+        if (def.keywords.some(kw => lower.includes(kw))) {
+            return def;
+        }
+    }
+
+    // 4. إن لم يتطابق
+    return {
+        label: isNaN(actionId) && actionId ? actionId : `الامضاء ${actionId || 'الشخصية'}`,
+        fullLabel: isNaN(actionId) && actionId ? actionId : `تأشيرة رقم ${actionId || '1'}`,
+        desc: `تأشيرة ${actionId || ''}`,
+        icon: '✍️',
+        badgeBg: 'bg-slate-100 text-slate-700 border-slate-200',
+        activeBtn: 'bg-blue-600 text-white',
+        keywords: []
+    };
 };
 
 // PDF Viewer components
@@ -50,6 +485,7 @@ function PDFViewerContent() {
     const [signing, setSigning] = useState(false);
     const [isUnsigning, setIsUnsigning] = useState(false);
     const [availableSignatures, setAvailableSignatures] = useState({});
+    const [generalSignatures, setGeneralSignatures] = useState([]);
 
     // Drag & Drop state للتوقيع
     const [isDragMode, setIsDragMode] = useState(false);
@@ -66,6 +502,26 @@ function PDFViewerContent() {
     const [selectedTextId, setSelectedTextId] = useState(null);
     const [hoveredSig, setHoveredSig] = useState(null); // حالة الختم الذي يتم الوقوف عليه حالياً
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    // حالة القطاع المختار والأختام
+    const [selectedSector, setSelectedSector] = useState(null); // '1', '2', ..., 'all', or null
+    const [sigSearchQuery, setSigSearchQuery] = useState("");
+    const [isSigModalOpen, setIsSigModalOpen] = useState(false);
+
+    const handleSelectSignature = (sig) => {
+        setHoveredSig(null);
+        setSignature(sig);
+        const pageEl = document.querySelector(`[data-testid="core__page-layer-${currentPage}"]`);
+        if (pageEl) {
+            setPageSize({
+                width: pageEl.clientWidth,
+                height: pageEl.clientHeight
+            });
+        }
+        setIsDragMode(true);
+        setIsSigModalOpen(false);
+        toast.success("تم اختيار الختم، اسحبه الآن وضعه في المكان المطلوب على المستند");
+    };
 
     const containerRef = useRef(null);
     const viewerRef = useRef(null);
@@ -110,35 +566,184 @@ function PDFViewerContent() {
             if (json.success && json.signatures) {
                 console.log("✅ Found signatures:", json.signatures.length);
 
-                // تجميع التواقيع بناءً على الجزء الموجود بعد الشرطة السفلية (مثلاً 1714_1.1 -> المجموعة 1)
-                const grouped = json.signatures.reduce((acc, sig) => {
-                    const parts = sig.FILE_NAME.split('_');
-                    let groupId = 'other';
-                    if (parts.length > 1) {
-                        groupId = parts[1].split('.')[0]; // يأخذ الرقم قبل النقطة
+                const empStr = String(empNum).trim();
+                const isAllowedSectors = ALLOWED_SECTOR_USERS.includes(empStr);
+
+                // للمستخدمين غير المصرح لهم برؤية القطاعات (أي موظف غير 1712، 1714، 1716):
+                // يتم تحويل كافة تواقيعهم مباشرة إلى التوقيعات الشخصية بدون قطاعات
+                if (!isAllowedSectors) {
+                    const allPersonal = json.signatures.map(sig => {
+                        const nameWithoutExt = sig.FILE_NAME.replace(/\.[^/.]+$/, "").trim();
+                        return {
+                            ...sig,
+                            actionInfo: getActionInfo('', nameWithoutExt)
+                        };
+                    });
+                    console.log(`👤 User ${empStr} is not in sector access list. Added ${allPersonal.length} signatures to personal signatures.`);
+                    setGeneralSignatures(allPersonal);
+                    setAvailableSignatures({});
+                    if (allPersonal.length > 0) {
+                        setSignature(allPersonal[0]);
                     }
-                    if (!acc[groupId]) acc[groupId] = [];
-                    acc[groupId].push(sig);
+                    return;
+                }
+
+                // للمستخدمين المصرح لهم (1712، 1714، 1716):
+                const general = [];
+                const deptSigs = [];
+                let commonNazar = null;
+                let commonTasdiq = null;
+
+                json.signatures.forEach(sig => {
+                    const nameWithoutExt = sig.FILE_NAME.replace(/\.[^/.]+$/, "").trim();
+
+                    // معرفة الجزء الذي يلي كود الموظف (يدعم الفواصل سواء . أو _ أو -)
+                    let afterEmp = "";
+                    if (nameWithoutExt.startsWith(empStr)) {
+                        afterEmp = nameWithoutExt.slice(empStr.length).trim();
+                    } else {
+                        afterEmp = nameWithoutExt;
+                    }
+
+                    // هل هو التوقيع العام للموظف؟
+                    // إذا لم يكن هناك شيء بعد الكود (1712.png) أو ينتهي بـ 0 أو عام أو شخصي أو sig
+                    const isGeneral = afterEmp === "" ||
+                        afterEmp === ".0" || afterEmp === "_0" ||
+                        afterEmp.includes("عام") || afterEmp.includes("شخصي") ||
+                        afterEmp.toLowerCase().includes("sig");
+
+                    if (isGeneral) {
+                        general.push(sig);
+                        return;
+                    }
+
+                    // إزالة الفاصل الأول (_ أو . أو -)
+                    const cleanAfter = afterEmp.replace(/^[_.\-\s]+/, "");
+                    const parts = cleanAfter.split(/[_.\-\s]+/);
+                    const firstSeg = parts[0] || "";
+                    const secondSeg = parts[1] || "";
+                    const lowerName = nameWithoutExt.toLowerCase();
+
+                    // هل هذا ختم "نظر" مستقل؟ (1712.16 أو 1712_16 أو يحتوي على نظر)
+                    const isStandaloneNazar = (firstSeg === '16' && !secondSeg) ||
+                        ((lowerName.includes('نظر') || lowerName.includes('nazar')) && parts.length <= 1);
+
+                    // هل هذا ختم "تصدق" مستقل؟ (1712.17 أو 1712_17 أو يحتوي على تصدق/تصديق)
+                    const isStandaloneTasdiq = (firstSeg === '17' && !secondSeg) ||
+                        ((lowerName.includes('تصدق') || lowerName.includes('تصديق') || lowerName.includes('tasdiq')) && parts.length <= 1);
+
+                    if (isStandaloneNazar) {
+                        sig.actionId = '16';
+                        sig.actionInfo = getActionInfo('16', nameWithoutExt);
+                        commonNazar = sig;
+                        return;
+                    }
+
+                    if (isStandaloneTasdiq) {
+                        sig.actionId = '17';
+                        sig.actionInfo = getActionInfo('17', nameWithoutExt);
+                        commonTasdiq = sig;
+                        return;
+                    }
+
+                    // توقيع تابع لقطاع محدد
+                    let matchedDept = null;
+
+                    // 1. أولاً: فحص الكلمات الدلالية لكل إدارة
+                    for (const dept of DEPARTMENT_DEFINITIONS) {
+                        if (dept.keywords && dept.keywords.some(kw => lowerName.includes(kw.toLowerCase()))) {
+                            matchedDept = dept;
+                            break;
+                        }
+                    }
+
+                    // 2. ثانياً: فحص المعرف المباشر للإدارة (id أو key)
+                    if (!matchedDept && firstSeg) {
+                        matchedDept = DEPARTMENT_DEFINITIONS.find(d => d.id === firstSeg || d.key === firstSeg);
+                    }
+
+                    // 3. توافقات خاصة للأرقام القديمة
+                    if (!matchedDept && firstSeg === '0') {
+                        matchedDept = DEPARTMENT_DEFINITIONS.find(d => d.key === 'deputy');
+                    } else if (!matchedDept && firstSeg === '1') {
+                        matchedDept = DEPARTMENT_DEFINITIONS.find(d => d.key === 'contracts' || d.id === '1');
+                    } else if (!matchedDept && firstSeg === '2') {
+                        matchedDept = DEPARTMENT_DEFINITIONS.find(d => d.key === 'cameras' || d.id === '2');
+                    }
+
+                    const deptId = matchedDept ? matchedDept.id : (firstSeg || 'other');
+
+                    // استخراج رقم التأشيرة
+                    let actionId = secondSeg || '';
+                    if (secondSeg === '16' || lowerName.includes('نظر') || lowerName.includes('nazar')) {
+                        actionId = '16';
+                    } else if (secondSeg === '17' || lowerName.includes('تصدق') || lowerName.includes('تصديق') || lowerName.includes('tasdiq')) {
+                        actionId = '17';
+                    } else if (!actionId && matchedDept) {
+                        actionId = '1';
+                    }
+
+                    sig.deptId = deptId;
+                    sig.actionId = actionId;
+                    sig.actionInfo = getActionInfo(actionId, nameWithoutExt);
+
+                    deptSigs.push(sig);
+                });
+
+                // نقل "نظر" و "تصدق" إلى التوقيعات الشخصية المعتمدة بالأسفل بدلاً من وضعهم داخل القطاعات
+                if (commonNazar) {
+                    general.push(commonNazar);
+                }
+                if (commonTasdiq) {
+                    general.push(commonTasdiq);
+                }
+
+                console.log(`👤 Found ${general.length} general personal signature(s) (including common visas)`);
+                setGeneralSignatures(general);
+
+                // تجميع تواقيع الإدارات
+                const grouped = deptSigs.reduce((acc, sig) => {
+                    const deptId = sig.deptId || 'other';
+                    if (!acc[deptId]) acc[deptId] = [];
+                    acc[deptId].push(sig);
                     return acc;
                 }, {});
 
-                // ترتيب العناصر داخل كل مجموعة ترتيباً طبيعياً (1.1, 1.2, ..., 1.10)
-                Object.keys(grouped).forEach(groupId => {
-                    grouped[groupId].sort((a, b) =>
-                        a.FILE_NAME.localeCompare(b.FILE_NAME, undefined, { numeric: true, sensitivity: 'base' })
-                    );
+                // إلغاء أي قطاعات مستقلة لـ نظر أو تصدق من قائمة الإدارات
+                delete grouped['16'];
+                delete grouped['17'];
+                delete grouped['18'];
+                delete grouped['nazar'];
+                delete grouped['tasdiq'];
+
+                // حذف أي إدارة فارغة لا تحتوي على أختام
+                Object.keys(grouped).forEach(deptId => {
+                    if (!grouped[deptId] || grouped[deptId].length === 0) {
+                        delete grouped[deptId];
+                    }
                 });
 
-                console.log("📋 Grouped & sorted signatures:", grouped);
+                // ترتيب العناصر داخل كل إدارة بناءً على رقم التأشيرة
+                Object.keys(grouped).forEach(groupId => {
+                    grouped[groupId].sort((a, b) => {
+                        const aAct = parseFloat(a.actionId);
+                        const bAct = parseFloat(b.actionId);
+                        if (!isNaN(aAct) && !isNaN(bAct)) return aAct - bAct;
+                        return a.FILE_NAME.localeCompare(b.FILE_NAME, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+                });
+
+                console.log("📋 Grouped signatures by department:", grouped);
                 setAvailableSignatures(grouped);
 
-                // اختيار أول توقيع افتراضي من أول مجموعة متاحة
-                const firstGroupId = Object.keys(grouped)[0];
-                if (firstGroupId && grouped[firstGroupId].length > 0) {
-                    console.log("✨ Setting default signature:", grouped[firstGroupId][0]);
-                    setSignature(grouped[firstGroupId][0]);
+                // تعيين أول توقيع افتراضي (سواء التوقيع العام أو أول ختم إدارة متاح)
+                if (general.length > 0) {
+                    setSignature(general[0]);
                 } else {
-                    console.warn("⚠️ No signatures found in groups");
+                    const firstGroupId = Object.keys(grouped)[0];
+                    if (firstGroupId && grouped[firstGroupId].length > 0) {
+                        setSignature(grouped[firstGroupId][0]);
+                    }
                 }
             } else {
                 console.warn("⚠️ No signatures returned:", json.error || "Unknown error");
@@ -314,10 +919,10 @@ function PDFViewerContent() {
     // Click outside to deselect active text item
     useEffect(() => {
         const handleOutsideClick = (e) => {
-            if (!e.target.closest('[id^="text-item-"]') && 
+            if (!e.target.closest('[id^="text-item-"]') &&
                 !e.target.closest('[class*="pointer-events-auto"]') &&
-                !e.target.closest('button') && 
-                !e.target.closest('input') && 
+                !e.target.closest('button') &&
+                !e.target.closest('input') &&
                 !e.target.closest('label')) {
                 setSelectedTextId(null);
                 setEditingTextId(null);
@@ -531,7 +1136,7 @@ function PDFViewerContent() {
                                 {user && (
                                     <span className="text-xs text-slate-400">
                                         المستخدم: {user.empNum} |
-                                        التوقيعات: {Object.keys(availableSignatures).length > 0
+                                        التوقيع: {Object.keys(availableSignatures).length > 0
                                             ? `${Object.values(availableSignatures).flat().length} متاح`
                                             : 'لا يوجد'}
                                     </span>
@@ -651,119 +1256,342 @@ function PDFViewerContent() {
                             </Button>
                         </div>
 
-                        {Object.keys(availableSignatures).length > 0 ? (
-                            <div className="space-y-6">
-                                {Object.entries(availableSignatures)
-                                    .sort(([aKey], [bKey]) => {
-                                        const aNum = parseFloat(aKey);
-                                        const bNum = parseFloat(bKey);
-                                        if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-                                        if (!isNaN(aNum)) return -1;
-                                        if (!isNaN(bNum)) return 1;
-                                        return aKey.localeCompare(bKey);
-                                    })
-                                    .map(([groupId, stamps]) => {
-                                        const sortedStamps = [...stamps].sort((a, b) =>
-                                            a.FILE_NAME.localeCompare(b.FILE_NAME, undefined, { numeric: true, sensitivity: 'base' })
-                                        );
-                                        const groupInfo = STAMP_GROUPS[groupId] || STAMP_GROUPS['other'];
-                                        return (
-                                            <div key={groupId} className="space-y-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-0.5 rounded border border-slate-200 whitespace-nowrap">
-                                                        {groupInfo.label}
-                                                    </span>
-                                                    <div className="h-px bg-slate-200 flex-1" />
-                                                </div>
-
-                                                {/* ... باقي الكود كما هو ... */}
-
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {Array.isArray(sortedStamps) && sortedStamps.map((sig) => (
-                                                        <button
-                                                            key={sig.FILE_NAME}
-                                                            onMouseEnter={() => setHoveredSig(sig)}
-                                                            onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
-                                                            onMouseLeave={() => setHoveredSig(null)}
-                                                            onClick={() => {
-                                                                setHoveredSig(null); // أخفي المعاينة عند الاختيار لعدم التداخل
-                                                                setSignature(sig);
-                                                                // تفعيل وضع السحب مباشرة عند اختيار التوقيع
-                                                                const pageEl = document.querySelector(`[data-testid="core__page-layer-${currentPage}"]`);
-                                                                if (pageEl) {
-                                                                    setPageSize({
-                                                                        width: pageEl.clientWidth,
-                                                                        height: pageEl.clientHeight
-                                                                    });
-                                                                }
-                                                                setIsDragMode(true);
-                                                            }}
-                                                            // ✅ تم تعديل الـ className لإزالة الـ Styling الخاص بالـ Selected
-                                                            className={`group relative transition-all duration-200 rounded-sm overflow-hidden p-1 border-2 flex flex-col items-center gap-1 cursor-pointer bg-slate-50 border-transparent hover:border-slate-300 hover:bg-white hover:shadow-md`}
-                                                        >
-                                                            <div className="w-full h-16 flex items-center justify-center p-1 bg-white border border-slate-100 rounded-sm group-hover:shadow-inner transition-all">
-                                                                <img
-                                                                    src={`/api/files/view?path=${encodeURIComponent(sig.SIGNATURE_PATH)}`}
-                                                                    alt={sig.FILE_NAME}
-                                                                    className="max-h-full max-w-full object-contain pointer-events-none transition-transform duration-300 group-hover:scale-105"
-                                                                />
-                                                            </div>
-                                                            <div className="w-full flex items-center justify-center py-0.5 px-1 bg-slate-100/50 group-hover:bg-slate-100 rounded-sm">
-                                                                <span className={`text-[9px] font-bold truncate text-slate-500`}>
-                                                                    {sig.FILE_NAME.split('_')[1] || sig.FILE_NAME}
-                                                                </span>
-                                                            </div>
-
-                                                            {/* ✅ تم إزالة مؤشر الاختيار الأخضر (كان هنا) */}
-                                                            {/* {signature?.FILE_NAME === sig.FILE_NAME && (
-        <div className={`pointer-events-none absolute top-0 right-0 w-3 h-3 ${groupInfo.bg} flex items-center justify-center rounded-bl-sm`}>
-          <div className="w-1.5 h-1.5 bg-white rounded-full" />
-        </div>
-      )} */}
-
-                                                            {/* Hint للمستخدم */}
-                                                            <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/5 transition-all pointer-events-none flex items-center justify-center">
-                                                                <span className="text-[8px] font-black text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 px-1 py-0.5 rounded">
-                                                                    اضغط للسحب
-                                                                </span>
-                                                            </div>
-
-                                                            {/* 🔥 النافذة المنبثقة الشفافة للمعاينة */}
-                                                            {hoveredSig?.FILE_NAME === sig.FILE_NAME && (
-                                                                <div
-                                                                    className="fixed z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-2xl border-4 border-white/50 backdrop-blur-xl bg-slate-900/40 p-6 flex items-center justify-center"
-                                                                    style={{
-                                                                        top: mousePos.y - 200,
-                                                                        right: (window.innerWidth - mousePos.x) + 30,
-                                                                        width: '450px',
-                                                                        height: '350px'
-                                                                    }}
-                                                                >
-                                                                    <img
-                                                                        src={`/api/files/view?path=${encodeURIComponent(sig.SIGNATURE_PATH)}`}
-                                                                        alt="Preview"
-                                                                        className="max-w-full max-h-full object-contain drop-shadow-2xl"
-                                                                    />
-                                                                    <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/80 text-white text-xs font-black px-4 py-2 rounded-full whitespace-nowrap border border-white/20">
-                                                                        🔎 معاينة مكبرة للختم: {sig.FILE_NAME.split('_')[1]}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </button>
-                                                    ))}
-                                                </div>
-
-                                                {/* ... باقي الكود كما هو ... */}
+                        {/* قطاعات وتواقيع */}
+                        {(() => {
+                            if (Object.keys(availableSignatures).length === 0) {
+                                if (generalSignatures.length === 0) {
+                                    return (
+                                        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                                            <div className="p-4 bg-slate-50 rounded-full">
+                                                <FileSignature className="w-8 h-8 text-slate-300" />
                                             </div>
+                                            <p className="text-slate-400 text-sm font-bold">لا توجد أختام أو تواقيع متاحة لهذا المستخدم</p>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            }
+
+                            const sortedGroups = Object.entries(availableSignatures).sort(([aKey], [bKey]) => {
+                                const aIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === aKey || d.key === aKey);
+                                const bIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === bKey || d.key === bKey);
+                                if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                                if (aIdx !== -1) return -1;
+                                if (bIdx !== -1) return 1;
+                                return aKey.localeCompare(bKey);
+                            });
+
+                            const totalCount = Object.values(availableSignatures).flat().length;
+
+                            // في حالة عدم اختيار قطاع: عرض كروت القطاعات فقط
+                            if (selectedSector === null) {
+                                return (
+                                    <div className="space-y-4 animate-in fade-in duration-200">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[11px] font-black text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                                                    القطاعات المتاحة للتوقيع ({sortedGroups.length})
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => setIsSigModalOpen(true)}
+                                                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline cursor-pointer"
+                                                title="استعراض مكبر في نافذة"
+                                            >
+                                                <Maximize2 className="w-3.5 h-3.5" />
+                                                نافذة مكبرة
+                                            </button>
+                                        </div>
+
+
+
+                                        <div className="space-y-2.5">
+                                            {sortedGroups.map(([groupId, stamps]) => {
+                                                const groupInfo = getGroupInfo(groupId);
+                                                const Icon = groupInfo.icon;
+                                                return (
+                                                    <div
+                                                        key={groupId}
+                                                        onClick={() => {
+                                                            setSelectedSector(groupId);
+                                                            setSigSearchQuery("");
+                                                        }}
+                                                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-md bg-gradient-to-r ${groupInfo.cardBg} flex items-center justify-between group`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${groupInfo.iconBg} shadow-sm transition-transform group-hover:scale-105`}>
+                                                                <Icon className="w-5 h-5 text-white" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-black text-xs text-slate-800 group-hover:text-blue-600 transition-colors">
+                                                                    {groupInfo.label}
+                                                                </h4>
+                                                                <p className="text-[10px] text-slate-500 font-bold">
+                                                                    {stamps.length} توقيع متاح
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className={`text-[11px] font-black px-2.5 py-1 rounded-lg transition-all ${groupInfo.badgeBg} group-hover:bg-blue-600 group-hover:text-white`}>
+                                                                فتح التأشرات  ➜
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="pt-2 flex flex-col gap-2">
+                                            <button
+                                                onClick={() => setSelectedSector('all')}
+                                                className="w-full py-2.5 px-3 text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
+                                            >
+                                                <Layers className="w-4 h-4 text-slate-400" />
+                                                <span>عرض جميع قطاعات التوقيع معاً ({totalCount} ختم)</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            // في حالة اختيار قطاع محدد: عرض تواقيع هذا القطاع فقط
+                            const currentStamps = (() => {
+                                let list = [];
+                                if (selectedSector === 'all') {
+                                    list = Object.values(availableSignatures).flat();
+                                } else if (availableSignatures[selectedSector]) {
+                                    list = availableSignatures[selectedSector];
+                                }
+                                if (!sigSearchQuery.trim()) return list;
+                                return list.filter(sig =>
+                                    sig.FILE_NAME.toLowerCase().includes(sigSearchQuery.toLowerCase())
+                                );
+                            })();
+
+                            const activeInfo = selectedSector === 'all'
+                                ? { label: 'جميع القطاعات', shortLabel: 'الكل', activeBtn: 'bg-slate-800 text-white' }
+                                : getGroupInfo(selectedSector);
+
+                            return (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    {/* شريط رأس القطاع وزر الرجوع */}
+                                    <div className="flex items-center justify-between bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                                        <button
+                                            onClick={() => {
+                                                setSelectedSector(null);
+                                                setSigSearchQuery("");
+                                            }}
+                                            className="flex items-center gap-1 text-xs font-black text-slate-600 hover:text-blue-600 transition-colors bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                            <span>القطاعات</span>
+                                        </button>
+
+                                        <div className="flex items-center gap-1.5 px-1 truncate">
+                                            <span className="text-xs font-black text-slate-800 truncate">
+                                                {activeInfo.label}
+                                            </span>
+                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 whitespace-nowrap">
+                                                {currentStamps.length}
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            onClick={() => setIsSigModalOpen(true)}
+                                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all cursor-pointer"
+                                            title="تكبير واستعراض في شاشة كاملة"
+                                        >
+                                            <Maximize2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    {/* أزرار التبديل السريع بين القطاعات */}
+                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 custom-scrollbar">
+                                        {sortedGroups.map(([groupId, stamps]) => {
+                                            const info = getGroupInfo(groupId);
+                                            const isCurrent = selectedSector === groupId;
+                                            return (
+                                                <button
+                                                    key={groupId}
+                                                    onClick={() => {
+                                                        setSelectedSector(groupId);
+                                                        setSigSearchQuery("");
+                                                    }}
+                                                    className={`text-[11px] font-black px-2.5 py-1.5 rounded-xl whitespace-nowrap transition-all border flex items-center gap-1.5 cursor-pointer ${isCurrent
+                                                            ? info.activeBtn
+                                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                        }`}
+                                                >
+                                                    <span>{info.shortLabel}</span>
+                                                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full ${isCurrent ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {stamps.length}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                        <button
+                                            onClick={() => {
+                                                setSelectedSector('all');
+                                                setSigSearchQuery("");
+                                            }}
+                                            className={`text-[11px] font-black px-2.5 py-1.5 rounded-xl whitespace-nowrap transition-all border flex items-center gap-1.5 cursor-pointer ${selectedSector === 'all'
+                                                    ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            <span>الكل</span>
+                                        </button>
+                                    </div>
+
+                                    {/* حقل البحث السريع */}
+                                    {/* <div className="relative">
+                                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            value={sigSearchQuery}
+                                            onChange={(e) => setSigSearchQuery(e.target.value)}
+                                            placeholder={`بحث في أختام ${activeInfo.shortLabel}...`}
+                                            className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                                        />
+                                        {sigSearchQuery && (
+                                            <button
+                                                onClick={() => setSigSearchQuery("")}
+                                                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div> */}
+
+                                    {/* شبكة أزرار التأشيرات (نصوص فقط بدون صور وبدون تكبير عائم) */}
+                                    {currentStamps.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {currentStamps.map((sig) => {
+                                                const action = sig.actionInfo || getActionInfo(sig.actionId, sig.FILE_NAME);
+                                                const isSelected = signature?.FILE_NAME === sig.FILE_NAME && isDragMode;
+
+                                                return (
+                                                    <button
+                                                        key={sig.FILE_NAME}
+                                                        onClick={() => handleSelectSignature(sig)}
+                                                        className={`py-3 px-2 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 group cursor-pointer text-center relative overflow-hidden ${isSelected
+                                                                ? 'border-blue-600 bg-blue-50/95 shadow-md ring-2 ring-blue-500/25 scale-[0.98]'
+                                                                : 'border-slate-200 bg-white hover:border-blue-500 hover:bg-slate-50 hover:shadow-sm'
+                                                            }`}
+                                                    >
+                                                        {/* أيقونة واسم التأشيرة فقط */}
+                                                        <div className="flex items-center justify-center gap-1.5 w-full">
+                                                            <span className="text-base">{action.icon}</span>
+                                                            <span className="font-black text-xs text-slate-800 group-hover:text-blue-600 transition-colors truncate">
+                                                                {action.label}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* كود الملف الصغير أسفل التأشيرة */}
+                                                        <span className="text-[10px] text-slate-400 font-bold truncate max-w-full">
+                                                            {sig.FILE_NAME}
+                                                        </span>
+
+                                                        {/* مؤشر التحديد */}
+                                                        {isSelected && (
+                                                            <div className="w-full mt-0.5 py-0.5 bg-blue-600 text-white text-[9px] font-black rounded-md">
+                                                                محدد للتوقيع ✍️
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-10 px-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                                            <Search className="w-8 h-8 text-slate-300 mx-auto" />
+                                            <p className="text-xs font-bold text-slate-500">لا توجد أختام مطابقة لبحثك</p>
+                                            {sigSearchQuery && (
+                                                <button
+                                                    onClick={() => setSigSearchQuery("")}
+                                                    className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+                                                >
+                                                    مسح البحث
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
+                        {/* التوقيعات الشخصية (بالكود والتأشيرات العامة نظَر وتُصدّق) */}
+                        {generalSignatures.length > 0 && (
+                            <div className="pt-4 border-t-2 border-slate-100 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-black text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                                        التوقيعات الشخصية المعتمدة ({generalSignatures.length})
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-bold">كود: {user?.empNum}</span>
+                                </div>
+                                <div className="space-y-2">
+                                    {generalSignatures.map((sig, idx) => {
+                                        const action = sig.actionInfo || getActionInfo(sig.actionId, sig.FILE_NAME);
+                                        const isSelected = signature?.FILE_NAME === sig.FILE_NAME && isDragMode;
+                                        const label = action?.label || (idx === 0 ? "التوقيع الشخصي المعتمد" : sig.FILE_NAME);
+
+                                        return (
+                                            <button
+                                                key={sig.FILE_NAME || idx}
+                                                onClick={() => handleSelectSignature(sig)}
+                                                onMouseEnter={() => setHoveredSig(sig)}
+                                                onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+                                                onMouseLeave={() => setHoveredSig(null)}
+                                                className={`w-full p-2.5 border-2 rounded-2xl transition-all shadow-sm hover:shadow-md flex items-center justify-between group cursor-pointer ${isSelected
+                                                        ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/25'
+                                                        : 'bg-gradient-to-r from-slate-50 to-white hover:from-blue-50/50 hover:to-white border-slate-200 hover:border-blue-500'
+                                                    }`}
+                                            >
+                                                <div className="h-12 w-28 flex items-center justify-center bg-white rounded-xl border border-slate-100 p-1 group-hover:shadow-inner overflow-hidden">
+                                                    <img
+                                                        src={`/api/files/view?path=${encodeURIComponent(sig.SIGNATURE_PATH)}`}
+                                                        alt={label}
+                                                        className="max-h-full max-w-full object-contain pointer-events-none transition-transform group-hover:scale-105"
+                                                    />
+                                                </div>
+                                                <div className="text-right flex-1 pr-3">
+                                                    <p className="text-xs font-black text-slate-800 group-hover:text-blue-600 transition-colors flex items-center gap-1.5 justify-end">
+                                                        {action?.icon && <span>{action.icon}</span>}
+                                                        <span>{label}</span>
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 font-bold truncate">
+                                                        {sig.FILE_NAME}
+                                                    </p>
+                                                    <span className="text-[9px] font-black text-blue-600 mt-0.5 inline-block">
+                                                        {isSelected ? "محدد للتوقيع ✍️" : "اضغط للسحب والتوقيع ✍️"}
+                                                    </span>
+                                                </div>
+
+                                                {/* المعاينة المكبرة عند الوقوف على التوقيع */}
+                                                {hoveredSig?.FILE_NAME === sig.FILE_NAME && (
+                                                    <div
+                                                        className="fixed z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-2xl border-4 border-white/50 backdrop-blur-xl bg-slate-900/70 p-6 flex items-center justify-center"
+                                                        style={{
+                                                            top: Math.max(20, Math.min(window.innerHeight - 380, mousePos.y - 180)),
+                                                            right: Math.min(window.innerWidth - 480, (window.innerWidth - mousePos.x) + 40),
+                                                            width: '450px',
+                                                            height: '350px'
+                                                        }}
+                                                    >
+                                                        <img
+                                                            src={`/api/files/view?path=${encodeURIComponent(sig.SIGNATURE_PATH)}`}
+                                                            alt="Preview"
+                                                            className="max-w-full max-h-full object-contain drop-shadow-2xl"
+                                                        />
+                                                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-xs font-black px-4 py-2 rounded-full whitespace-nowrap border border-white/20">
+                                                            🔎 معاينة: {label} ({sig.FILE_NAME})
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </button>
                                         );
                                     })}
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-                                <div className="p-4 bg-slate-50 rounded-full">
-                                    <FileSignature className="w-8 h-8 text-slate-300" />
                                 </div>
-                                <p className="text-slate-400 text-sm font-bold">لا توجد أختام أو تواقيع متاحة لهذا المستخدم</p>
                             </div>
                         )}
                     </div>
@@ -1083,6 +1911,198 @@ function PDFViewerContent() {
                     )}
                 </div>
             </div>
+
+            {/* نافذة مكبرة لاختيار التواقيع والأختام */}
+            {isSigModalOpen && (
+                <div
+                    className="fixed inset-0 z-[99999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+                    dir="rtl"
+                    onClick={() => setIsSigModalOpen(false)}
+                >
+                    <div
+                        className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* رأس النافذة */}
+                        <div className="p-5 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+                                    <FileSignature className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-lg text-slate-800">
+                                        استعراض   التوقيعات
+                                    </h3>
+
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsSigModalOpen(false)}
+                                className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* شريط التحكم: التبديل بين القطاعات والبحث */}
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                            {/* أزرار القطاعات */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 custom-scrollbar">
+                                {Object.entries(availableSignatures)
+                                    .sort(([aKey], [bKey]) => {
+                                        const aIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === aKey || d.key === aKey);
+                                        const bIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === bKey || d.key === bKey);
+                                        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                                        if (aIdx !== -1) return -1;
+                                        if (bIdx !== -1) return 1;
+                                        return aKey.localeCompare(bKey);
+                                    })
+                                    .map(([groupId, stamps]) => {
+                                        const info = getGroupInfo(groupId);
+                                        const isCurrent = (selectedSector === groupId) || (!selectedSector && groupId === Object.keys(availableSignatures)[0]);
+                                        return (
+                                            <button
+                                                key={groupId}
+                                                onClick={() => setSelectedSector(groupId)}
+                                                className={`text-xs font-black px-4 py-2 rounded-xl whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer ${isCurrent
+                                                        ? info.activeBtn
+                                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                    }`}
+                                            >
+                                                <span>{info.label}</span>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full ${isCurrent ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                    {stamps.length}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                {generalSignatures.length > 0 && (
+                                    <button
+                                        onClick={() => setSelectedSector('general')}
+                                        className={`text-xs font-black px-4 py-2 rounded-xl whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer ${selectedSector === 'general'
+                                                ? 'bg-blue-600 text-white shadow-md'
+                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                    >
+                                        <span>التوقيع العام (الشخصي)</span>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${selectedSector === 'general' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                            {generalSignatures.length}
+                                        </span>
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setSelectedSector('all')}
+                                    className={`text-xs font-black px-4 py-2 rounded-xl whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer ${selectedSector === 'all'
+                                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                        }`}
+                                >
+                                    <span>جميع التواقيع والأختام</span>
+                                </button>
+                            </div>
+
+                            {/* حقل البحث داخل المودال */}
+                            <div className="relative w-full sm:w-72">
+                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    value={sigSearchQuery}
+                                    onChange={(e) => setSigSearchQuery(e.target.value)}
+                                    placeholder="ابحث عن ختم بالاسم أو الرقم..."
+                                    className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700"
+                                />
+                                {sigSearchQuery && (
+                                    <button
+                                        onClick={() => setSigSearchQuery("")}
+                                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* شبكة الأختام المكبرة */}
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-100/60">
+                            {(() => {
+                                let modalStampsList = [];
+                                if (selectedSector === 'general') {
+                                    modalStampsList = generalSignatures;
+                                } else if (selectedSector === 'all') {
+                                    modalStampsList = [...generalSignatures, ...Object.values(availableSignatures).flat()];
+                                } else if (selectedSector && availableSignatures[selectedSector]) {
+                                    modalStampsList = availableSignatures[selectedSector];
+                                } else {
+                                    const firstKey = Object.keys(availableSignatures)[0];
+                                    modalStampsList = firstKey ? availableSignatures[firstKey] : generalSignatures;
+                                }
+
+                                if (sigSearchQuery.trim()) {
+                                    modalStampsList = modalStampsList.filter(sig =>
+                                        sig.FILE_NAME.toLowerCase().includes(sigSearchQuery.toLowerCase())
+                                    );
+                                }
+
+                                if (modalStampsList.length === 0) {
+                                    return (
+                                        <div className="text-center py-20">
+                                            <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                                            <h4 className="text-base font-black text-slate-700">لا توجد أختام مطابقة</h4>
+                                            <p className="text-xs text-slate-400 font-bold mt-1">جرب البحث بكلمات أخرى أو اختر قطاعاً آخر</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                        {modalStampsList.map((sig) => (
+                                            <div
+                                                key={sig.FILE_NAME}
+                                                onClick={() => handleSelectSignature(sig)}
+                                                className="group bg-white rounded-2xl border-2 border-slate-200 hover:border-blue-500 p-3 flex flex-col items-center justify-between gap-3 cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1"
+                                            >
+                                                <div className="w-full h-28 flex items-center justify-center p-2 bg-slate-50 rounded-xl group-hover:bg-blue-50/30 transition-colors">
+                                                    <img
+                                                        src={`/api/files/view?path=${encodeURIComponent(sig.SIGNATURE_PATH)}`}
+                                                        alt={sig.FILE_NAME}
+                                                        className="max-h-full max-w-full object-contain pointer-events-none transition-transform duration-300 group-hover:scale-110"
+                                                    />
+                                                </div>
+                                                <div className="w-full flex items-center justify-between pt-2 border-t border-slate-100">
+                                                    <div className="flex flex-col truncate pr-1">
+                                                        <span className="text-xs font-black text-slate-800 truncate flex items-center gap-1">
+                                                            <span>{sig.actionInfo?.icon || '✍️'}</span>
+                                                            <span>{sig.actionInfo?.label || sig.FILE_NAME}</span>
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 font-bold truncate">
+                                                            {sig.FILE_NAME}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors whitespace-nowrap">
+                                                        اختيار ✍️
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* تذييل النافذة */}
+                        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-bold">
+                            <span>اضغط على أي ختم لتحديده وسحبه على المستند</span>
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsSigModalOpen(false)}
+                                className="rounded-xl px-5 text-xs font-bold cursor-pointer"
+                            >
+                                إغلاق
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

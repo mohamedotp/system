@@ -17,6 +17,8 @@ import {
     Save,
     RotateCcw,
     Type,
+    Highlighter,
+    Palette,
     Plus,
     Minus,
     Search,
@@ -38,6 +40,22 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Draggable from "react-draggable";
+
+
+const MARKER_COLORS = [
+    { name: 'أصفر فسفوري', value: '#facc15' },
+    { name: 'أخضر فسفوري', value: '#4ade80' },
+    { name: 'أزرق سماوي', value: '#38bdf8' },
+    { name: 'وردي فاقع', value: '#f472b6' },
+    { name: 'برتقالي', value: '#fb923c' },
+    { name: 'بنفسجي', value: '#c084fc' },
+];
+
+const MARKER_WIDTHS = [
+    { label: 'رفيع', size: 10 },
+    { label: 'متوسط', size: 20 },
+    { label: 'عريض', size: 32 },
+];
 
 const DEPARTMENT_DEFINITIONS = [
     {
@@ -279,7 +297,7 @@ const DEPARTMENT_DEFINITIONS = [
         keywords: ['ايمن', 'أيمن', 'رشدي', 'رشدى', 'ayman']
     },
     {
-        id: '18',
+        id: '25',
         key: 'ghada',
         label: 'م. غادة الجندي',
         shortLabel: 'م. غادة الجندي',
@@ -497,6 +515,15 @@ function PDFViewerContent() {
     const [savingTexts, setSavingTexts] = useState(false);
     const [editingTextId, setEditingTextId] = useState(null);
     const [isTextMode, setIsTextMode] = useState(false);
+    // حالة قلم الماركر (التظليل والتحديد)
+    const [isMarkerMode, setIsMarkerMode] = useState(false);
+    const [markerColor, setMarkerColor] = useState('#facc15'); // أصفر فسفوري
+    const [markerWidth, setMarkerWidth] = useState(20);
+    const [markerOpacity, setMarkerOpacity] = useState(0.45);
+    const [drawings, setDrawings] = useState([]);
+    const [currentStroke, setCurrentStroke] = useState(null);
+    const [savingDrawings, setSavingDrawings] = useState(false);
+
     const [currentPage, setCurrentPage] = useState(0);
     const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
     const [selectedTextId, setSelectedTextId] = useState(null);
@@ -1011,6 +1038,203 @@ function PDFViewerContent() {
         window.addEventListener('mouseup', onMouseUp);
     };
 
+
+    // تحويل النقاط إلى مسار SVG ناعم
+    const pointsToSvgPath = (points) => {
+        if (!points || points.length === 0) return "";
+        if (points.length === 1) {
+            return "M " + points[0].x + " " + points[0].y + " L " + (points[0].x + 0.1) + " " + (points[0].y + 0.1);
+        }
+        let d = "M " + points[0].x + " " + points[0].y;
+        for (let i = 1; i < points.length; i++) {
+            d += " L " + points[i].x + " " + points[i].y;
+        }
+        return d;
+    };
+
+    const handleUndoDrawing = () => {
+        setDrawings(prev => prev.slice(0, -1));
+    };
+
+    const handleSaveDrawings = async () => {
+        if (!drawings.length) {
+            toast.error("لا توجد تحديدات لحفظها");
+            return;
+        }
+
+        try {
+            setSavingDrawings(true);
+
+            // تجميع التحديدات بحسب رقم الصفحة
+            const pagesWithDrawings = {};
+            drawings.forEach(stroke => {
+                if (!pagesWithDrawings[stroke.pageIndex]) {
+                    pagesWithDrawings[stroke.pageIndex] = [];
+                }
+                pagesWithDrawings[stroke.pageIndex].push(stroke);
+            });
+
+            const drawingsPayload = [];
+
+            for (const [pageIdxStr, strokes] of Object.entries(pagesWithDrawings)) {
+                const pageIndex = parseInt(pageIdxStr);
+                const pageEl = document.querySelector(`[data-testid="core__page-layer-${pageIndex}"]`);
+                if (!pageEl) continue;
+
+                const rect = pageEl.getBoundingClientRect();
+                const offscreenCanvas = document.createElement('canvas');
+                const scale = 2; // دقة مضاعفة للحفاظ على النقاء
+                offscreenCanvas.width = rect.width * scale;
+                offscreenCanvas.height = rect.height * scale;
+                const ctx = offscreenCanvas.getContext('2d');
+                ctx.scale(scale, scale);
+
+                strokes.forEach(stroke => {
+                    if (!stroke.points || stroke.points.length < 2) return;
+                    ctx.beginPath();
+                    ctx.strokeStyle = stroke.color;
+                    ctx.lineWidth = stroke.width;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.globalAlpha = stroke.opacity || 0.45;
+
+                    stroke.points.forEach((pt, i) => {
+                        if (i === 0) ctx.moveTo(pt.x, pt.y);
+                        else ctx.lineTo(pt.x, pt.y);
+                    });
+                    ctx.stroke();
+                });
+
+                const pngDataUrl = offscreenCanvas.toDataURL('image/png');
+                drawingsPayload.push({
+                    pageIndex,
+                    pngDataUrl,
+                    viewWidth: rect.width,
+                    viewHeight: rect.height
+                });
+            }
+
+            if (!drawingsPayload.length) {
+                toast.error("لم يتم العثور على صفحات للتحديد");
+                return;
+            }
+
+            const res = await fetch("/api/pdf/add-drawings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    filePath,
+                    docNo,
+                    drawings: drawingsPayload
+                })
+            });
+
+            const json = await res.json();
+            if (json.success) {
+                toast.success(json.message || "تم حفظ التحديدات بنجاح");
+                setDrawings([]);
+                setIsMarkerMode(false);
+                setPdfUrl(null);
+                setTimeout(() => loadPDF(), 1200);
+            } else {
+                toast.error(json.error || "فشل حفظ التحديدات");
+            }
+        } catch (err) {
+            console.error("Save drawings error:", err);
+            toast.error("حدث خطأ أثناء حفظ التحديدات");
+        } finally {
+            setSavingDrawings(false);
+        }
+    };
+
+    // مراقبة أحداث الماوس للرسم بقلم الماركر
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container || !isMarkerMode) return;
+
+        let isDrawing = false;
+        let activePageIndex = null;
+        let pageRect = null;
+        let strokePoints = [];
+
+        const onMouseDown = (e) => {
+            if (e.button !== 0) return;
+            const pageEl = e.target.closest('[data-testid^="core__page-layer-"]');
+            if (!pageEl) return;
+
+            e.preventDefault();
+
+            const pIndex = parseInt(pageEl.getAttribute('data-testid').split('-').pop());
+            const rect = pageEl.getBoundingClientRect();
+            isDrawing = true;
+            activePageIndex = pIndex;
+            pageRect = rect;
+
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            strokePoints = [{ x, y }];
+
+            setCurrentStroke({
+                id: Date.now(),
+                pageIndex: pIndex,
+                color: markerColor,
+                width: markerWidth,
+                opacity: markerOpacity,
+                points: strokePoints
+            });
+        };
+
+        const onMouseMove = (e) => {
+            if (!isDrawing || activePageIndex === null || !pageRect) return;
+            e.preventDefault();
+
+            const x = e.clientX - pageRect.left;
+            const y = e.clientY - pageRect.top;
+
+            const lastPt = strokePoints[strokePoints.length - 1];
+            if (lastPt && Math.hypot(lastPt.x - x, lastPt.y - y) < 2.5) return;
+
+            strokePoints.push({ x, y });
+            setCurrentStroke({
+                id: Date.now(),
+                pageIndex: activePageIndex,
+                color: markerColor,
+                width: markerWidth,
+                opacity: markerOpacity,
+                points: [...strokePoints]
+            });
+        };
+
+        const onMouseUp = () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            if (strokePoints.length >= 2 && activePageIndex !== null) {
+                setDrawings(prev => [...prev, {
+                    id: Date.now(),
+                    pageIndex: activePageIndex,
+                    color: markerColor,
+                    width: markerWidth,
+                    opacity: markerOpacity,
+                    points: strokePoints
+                }]);
+            }
+            activePageIndex = null;
+            pageRect = null;
+            strokePoints = [];
+            setCurrentStroke(null);
+        };
+
+        container.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+
+        return () => {
+            container.removeEventListener('mousedown', onMouseDown);
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+    }, [isMarkerMode, markerColor, markerWidth, markerOpacity]);
+
     const handleSaveTexts = async () => {
         if (!textItems.length) {
             toast.error("لا توجد نصوص لحفظها");
@@ -1113,126 +1337,160 @@ function PDFViewerContent() {
     return (
         <div className="min-h-screen bg-slate-900 flex flex-col h-screen overflow-hidden">
             {/* Header */}
-            <div className="bg-slate-800 border-b border-slate-700 px-4 py-2.5 shrink-0 flex items-center justify-between z-30 shadow-md gap-4">
-                <div className="flex items-center gap-3 shrink-0">
-                    <Button
-                        variant="ghost"
-                        onClick={() => {
-                            if (window.opener) {
-                                window.close();
-                            } else {
-                                window.history.back();
-                            }
-                        }}
-                        className="text-white hover:bg-slate-700 font-bold"
-                    >
-                        <X className="w-5 h-5 ml-1.5" />
-                        إغلاق
-                    </Button>
-                    <div className="border-r border-slate-700 pr-3 flex items-center gap-3">
-                        {docNo && <span className="text-blue-400 text-base font-black whitespace-nowrap">مكاتبة رقم: {docNo}</span>}
-                        {user && (
-                            <span className="text-xs text-slate-400 whitespace-nowrap hidden sm:inline-block">
-                                المستخدم: {user.empNum}
+            <div className="bg-slate-800 border-b border-slate-700 px-3 py-1.5 shrink-0 z-30 shadow-md flex flex-col gap-1.5">
+                {/* الصف العلوي: أدوات التحكم الأساسية */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                if (window.opener) {
+                                    window.close();
+                                } else {
+                                    window.history.back();
+                                }
+                            }}
+                            className="text-white hover:bg-slate-700 font-bold h-7 px-2.5 text-xs"
+                        >
+                            <X className="w-4 h-4 ml-1" />
+                            إغلاق
+                        </Button>
+                        {docNo && (
+                            <span className="bg-blue-950/70 text-blue-300 border border-blue-800/60 px-2 py-0.5 rounded text-[11px] font-bold whitespace-nowrap">
+                                مكاتبة رقم: {docNo}
                             </span>
+                        )}
+                    </div>
+
+                    {/* أزرار العمليات: تثبيت، إلغاء، تراجع / مسح، حفظ النصوص */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {signature && isDragMode && (
+                            <div className="flex items-center gap-1.5 animate-in fade-in zoom-in duration-300">
+                                <Button
+                                    size="sm"
+                                    onClick={handleSaveSignature}
+                                    disabled={signing}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black h-7 px-3 text-xs shadow-md shadow-emerald-500/20"
+                                >
+                                    {signing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5 ml-1.5" />}
+                                    تثبيت في هذا المكان
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => setIsDragMode(false)}
+                                    className="font-bold h-7 px-2.5 text-xs"
+                                >
+                                    إلغاء
+                                </Button>
+                            </div>
+                        )}
+
+                        {signature && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleUnsign}
+                                disabled={isUnsigning}
+                                className="border-red-500 text-red-400 hover:bg-red-500/10 font-bold h-7 px-2.5 text-xs shrink-0"
+                            >
+                                {isUnsigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5 ml-1.5" />}
+                                تراجع / مسح
+                            </Button>
+                        )}
+
+                        {drawings.length > 0 && (
+                            <div className="flex items-center gap-1.5 animate-in fade-in zoom-in duration-200">
+                                <Button
+                                    size="sm"
+                                    onClick={handleSaveDrawings}
+                                    disabled={savingDrawings}
+                                    className="bg-amber-500 hover:bg-amber-600 text-white font-black h-7 px-2.5 text-xs shadow-md shadow-amber-500/20"
+                                >
+                                    {savingDrawings ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Save className="w-3.5 h-3.5 ml-1.5" />
+                                    )}
+                                    حفظ التحديدات ({drawings.length})
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                        setDrawings([]);
+                                        setIsMarkerMode(false);
+                                    }}
+                                    className="font-bold h-7 px-2.5 text-xs"
+                                >
+                                    مسح التحديدات
+                                </Button>
+                            </div>
+                        )}
+
+                        {textItems.length > 0 && (
+                            <div className="flex items-center gap-1.5">
+                                <Button
+                                    size="sm"
+                                    onClick={handleSaveTexts}
+                                    disabled={savingTexts}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white font-black h-7 px-2.5 text-xs shadow-md shadow-amber-500/20"
+                                >
+                                    {savingTexts ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Save className="w-3.5 h-3.5 ml-1.5" />
+                                    )}
+                                    حفظ النصوص
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                        setTextItems([]);
+                                        setIsTextMode(false);
+                                    }}
+                                    className="font-bold h-7 px-2.5 text-xs"
+                                >
+                                    إلغاء النصوص
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </div>
 
-                {/* Action Buttons in Header with Department Names */}
-                <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar py-0.5">
-                    {/* أزرار أسماء الأقسام بجانب تراجع / مسح للـ 1712، 1714، 1716 */}
-                    {isAllowedSectors && Object.keys(availableSignatures).length > 0 && (
-                        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700">
-                            {Object.entries(availableSignatures)
-                                .sort(([aKey], [bKey]) => {
-                                    const aIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === aKey || d.key === aKey);
-                                    const bIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === bKey || d.key === bKey);
-                                    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-                                    if (aIdx !== -1) return -1;
-                                    if (bIdx !== -1) return 1;
-                                    return aKey.localeCompare(bKey);
-                                })
-                                .map(([groupId, stamps]) => {
-                                    const info = getGroupInfo(groupId);
-                                    const isCurrent = topDeptModal === groupId;
-                                    return (
-                                        <button
-                                            key={groupId}
-                                            onClick={() => setTopDeptModal(groupId)}
-                                            className={`text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap transition-all border cursor-pointer ${
-                                                isCurrent
-                                                    ? 'bg-blue-600 text-white border-blue-500 shadow-md ring-2 ring-blue-400/30'
-                                                    : 'bg-slate-700/60 hover:bg-slate-700 text-slate-200 hover:text-white border-slate-600/70 hover:border-slate-500'
+                {/* أزرار أسماء كل الأقسام كاملة بدون أي مسطرة أو تمرير أفقي نهائياً */}
+                {isAllowedSectors && Object.keys(availableSignatures).length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-slate-700/60">
+                        {Object.entries(availableSignatures)
+                            .sort(([aKey], [bKey]) => {
+                                const aIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === aKey || d.key === aKey);
+                                const bIdx = DEPARTMENT_DEFINITIONS.findIndex(d => d.id === bKey || d.key === bKey);
+                                if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                                if (aIdx !== -1) return -1;
+                                if (bIdx !== -1) return 1;
+                                return aKey.localeCompare(bKey);
+                            })
+                            .map(([groupId, stamps]) => {
+                                const info = getGroupInfo(groupId);
+                                const isCurrent = topDeptModal === groupId;
+                                return (
+                                    <button
+                                        key={groupId}
+                                        onClick={() => setTopDeptModal(groupId)}
+                                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md transition-all border cursor-pointer ${isCurrent
+                                                ? 'bg-blue-600 text-white border-blue-400 shadow-sm ring-1 ring-blue-300'
+                                                : 'bg-slate-700/70 hover:bg-slate-600 text-slate-200 hover:text-white border-slate-600 hover:border-slate-400'
                                             }`}
-                                            title={`أختام ${info.label}`}
-                                        >
-                                            {info.shortLabel || info.label}
-                                        </button>
-                                    );
-                                })}
-                        </div>
-                    )}
-
-                    {signature && isDragMode && (
-                        <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-300">
-                            <Button
-                                onClick={handleSaveSignature}
-                                disabled={signing}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow-lg shadow-emerald-500/20"
-                            >
-                                {signing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
-                                تثبيت في هذا المكان
-                            </Button>
-                            <Button
-                                variant="destructive"
-                                onClick={() => setIsDragMode(false)}
-                                className="font-black"
-                            >
-                                إلغاء
-                            </Button>
-                        </div>
-                    )}
-
-                    {signature && (
-                        <Button
-                            variant="outline"
-                            onClick={handleUnsign}
-                            disabled={isUnsigning}
-                            className="border-red-500 text-red-500 hover:bg-red-500/10 font-black shrink-0"
-                        >
-                            {isUnsigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4 ml-2" />}
-                            تراجع / مسح
-                        </Button>
-                    )}
-
-                    {textItems.length > 0 && (
-                        <>
-                            <Button
-                                onClick={handleSaveTexts}
-                                disabled={savingTexts}
-                                className="bg-amber-600 hover:bg-amber-700 text-white font-black shadow-lg shadow-amber-500/20"
-                            >
-                                {savingTexts ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <Save className="w-4 h-4 ml-2" />
-                                )}
-                                حفظ النصوص
-                            </Button>
-                            <Button
-                                variant="destructive"
-                                onClick={() => {
-                                    setTextItems([]);
-                                    setIsTextMode(false);
-                                }}
-                                className="font-black"
-                            >
-                                إلغاء النصوص
-                            </Button>
-                        </>
-                    )}
-                </div>
+                                        title={`أختام ${info.label}`}
+                                    >
+                                        {info.shortLabel || info.label}
+                                    </button>
+                                );
+                            })}
+                    </div>
+                )}
             </div>
 
             {/* Main Content Area with Sidebar */}
@@ -1270,6 +1528,152 @@ function PDFViewerContent() {
                                     <span className={`text-[10px] ${isTextMode ? 'text-blue-100' : 'text-slate-400'}`}>أضف تعليقاً في أي مكان</span>
                                 </div>
                             </Button>
+                            {/* زر قلم الماركر / التظليل تحت إضافة نص */}
+                            <Button
+                                onClick={() => {
+                                    setIsMarkerMode(!isMarkerMode);
+                                    setIsTextMode(false);
+                                    setIsDragMode(false);
+                                }}
+                                variant={isMarkerMode ? "default" : "outline"}
+                                className={`w-full justify-start gap-3 h-14 rounded-2xl font-black transition-all ${isMarkerMode ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xl shadow-amber-500/20 border-amber-600' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                            >
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isMarkerMode ? 'bg-white/20' : 'bg-amber-50'}`}>
+                                    <Highlighter className={`w-5 h-5 ${isMarkerMode ? 'text-white' : 'text-amber-600'}`} />
+                                </div>
+                                <div className="flex flex-col items-start gap-0.5">
+                                    <span className="text-sm">قلم التحديد / ماركر</span>
+                                    <span className={`text-[10px] ${isMarkerMode ? 'text-amber-100' : 'text-slate-400'}`}>تظليل وتحديد النصوص بالقلم</span>
+                                </div>
+                            </Button>
+
+                            {/* لوحة خيارات وألوان الماركر */}
+                            {isMarkerMode && (
+                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3 animate-in fade-in duration-200">
+                                    {/* اختيار لون الماركر */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                                <Palette className="w-3.5 h-3.5 text-slate-500" />
+                                                لون الماركر:
+                                            </span>
+                                            <label className="cursor-pointer text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                                <span>مخصص</span>
+                                                <input
+                                                    type="color"
+                                                    value={markerColor}
+                                                    onChange={(e) => setMarkerColor(e.target.value)}
+                                                    className="w-5 h-5 rounded-full border border-slate-300 cursor-pointer p-0"
+                                                />
+                                            </label>
+                                        </div>
+                                        <div className="grid grid-cols-6 gap-1.5">
+                                            {MARKER_COLORS.map(c => (
+                                                <button
+                                                    key={c.value}
+                                                    type="button"
+                                                    onClick={() => setMarkerColor(c.value)}
+                                                    title={c.name}
+                                                    className={`h-7 rounded-lg transition-transform border cursor-pointer flex items-center justify-center ${markerColor.toLowerCase() === c.value.toLowerCase()
+                                                            ? 'ring-2 ring-slate-800 scale-105 border-white shadow-sm'
+                                                            : 'border-black/10 hover:scale-105'
+                                                        }`}
+                                                    style={{ backgroundColor: c.value }}
+                                                >
+                                                    {markerColor.toLowerCase() === c.value.toLowerCase() && (
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-900" />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* حجم القلم */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-xs font-bold text-slate-700">حجم القلم:</span>
+                                            <span className="text-[11px] font-bold text-slate-500">{markerWidth}px</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            {MARKER_WIDTHS.map(w => (
+                                                <button
+                                                    key={w.size}
+                                                    type="button"
+                                                    onClick={() => setMarkerWidth(w.size)}
+                                                    className={`flex-1 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${markerWidth === w.size
+                                                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                        }`}
+                                                >
+                                                    {w.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* درجة التظليل والشفافية */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-xs font-bold text-slate-700">درجة التظليل:</span>
+                                            <span className="text-[11px] font-bold text-slate-500">{Math.round(markerOpacity * 100)}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0.2"
+                                            max="0.8"
+                                            step="0.05"
+                                            value={markerOpacity}
+                                            onChange={(e) => setMarkerOpacity(parseFloat(e.target.value))}
+                                            className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+                                        />
+                                    </div>
+
+                                    {/* أزرار العمليات */}
+                                    <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleUndoDrawing}
+                                                disabled={drawings.length === 0}
+                                                className="flex-1 h-8 text-xs font-bold border-slate-300"
+                                                title="تراجع عن آخر خط"
+                                            >
+                                                <RotateCcw className="w-3.5 h-3.5 ml-1" />
+                                                تراجع ({drawings.length})
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setDrawings([])}
+                                                disabled={drawings.length === 0}
+                                                className="flex-1 h-8 text-xs font-bold border-red-200 text-red-600 hover:bg-red-50"
+                                                title="مسح كل التحديدات"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5 ml-1" />
+                                                مسح الكل
+                                            </Button>
+                                        </div>
+
+                                        {drawings.length > 0 && (
+                                            <Button
+                                                size="sm"
+                                                onClick={handleSaveDrawings}
+                                                disabled={savingDrawings}
+                                                className="w-full h-9 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20"
+                                            >
+                                                {savingDrawings ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin ml-1" />
+                                                ) : (
+                                                    <Save className="w-4 h-4 ml-1" />
+                                                )}
+                                                حفظ التحديدات على المستند ({drawings.length})
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
 
                         {/* قطاعات وتواقيع */}
@@ -1439,8 +1843,8 @@ function PDFViewerContent() {
                                                         setSigSearchQuery("");
                                                     }}
                                                     className={`text-[11px] font-black px-2.5 py-1.5 rounded-xl whitespace-nowrap transition-all border flex items-center gap-1.5 cursor-pointer ${isCurrent
-                                                            ? info.activeBtn
-                                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                        ? info.activeBtn
+                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                                                         }`}
                                                 >
                                                     <span>{info.shortLabel}</span>
@@ -1456,8 +1860,8 @@ function PDFViewerContent() {
                                                 setSigSearchQuery("");
                                             }}
                                             className={`text-[11px] font-black px-2.5 py-1.5 rounded-xl whitespace-nowrap transition-all border flex items-center gap-1.5 cursor-pointer ${selectedSector === 'all'
-                                                    ? 'bg-slate-800 text-white border-slate-800 shadow-md'
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                                                 }`}
                                         >
                                             <span>الكل</span>
@@ -1496,8 +1900,8 @@ function PDFViewerContent() {
                                                         key={sig.FILE_NAME}
                                                         onClick={() => handleSelectSignature(sig)}
                                                         className={`py-3 px-2 rounded-2xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 group cursor-pointer text-center relative overflow-hidden ${isSelected
-                                                                ? 'border-blue-600 bg-blue-50/95 shadow-md ring-2 ring-blue-500/25 scale-[0.98]'
-                                                                : 'border-slate-200 bg-white hover:border-blue-500 hover:bg-slate-50 hover:shadow-sm'
+                                                            ? 'border-blue-600 bg-blue-50/95 shadow-md ring-2 ring-blue-500/25 scale-[0.98]'
+                                                            : 'border-slate-200 bg-white hover:border-blue-500 hover:bg-slate-50 hover:shadow-sm'
                                                             }`}
                                                     >
                                                         {/* أيقونة واسم التأشيرة فقط */}
@@ -1564,8 +1968,8 @@ function PDFViewerContent() {
                                                 onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
                                                 onMouseLeave={() => setHoveredSig(null)}
                                                 className={`w-full p-2.5 border-2 rounded-2xl transition-all shadow-sm hover:shadow-md flex items-center justify-between group cursor-pointer ${isSelected
-                                                        ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/25'
-                                                        : 'bg-gradient-to-r from-slate-50 to-white hover:from-blue-50/50 hover:to-white border-slate-200 hover:border-blue-500'
+                                                    ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/25'
+                                                    : 'bg-gradient-to-r from-slate-50 to-white hover:from-blue-50/50 hover:to-white border-slate-200 hover:border-blue-500'
                                                     }`}
                                             >
                                                 <div className="h-12 w-28 flex items-center justify-center bg-white rounded-xl border border-slate-100 p-1 group-hover:shadow-inner overflow-hidden">
@@ -1622,7 +2026,7 @@ function PDFViewerContent() {
                 <div className="flex-1 relative overflow-hidden p-4 flex justify-center items-start">
                     <div
                         ref={containerRef}
-                        className="relative w-full max-w-5xl h-full shadow-2xl rounded-xl overflow-hidden bg-white"
+                        className={`relative w-full max-w-5xl h-full shadow-2xl rounded-xl overflow-hidden bg-white ${isMarkerMode ? "cursor-crosshair select-none" : ""}`}
                     >
                         <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
                             {pdfUrl ? (
@@ -1737,6 +2141,52 @@ function PDFViewerContent() {
                             </div>
                         )}
 
+
+
+                        {/* Rendering Marker Drawings using Portals into each Page Layer */}
+                        {(() => {
+                            const pagesMap = {};
+                            drawings.forEach(stroke => {
+                                if (!pagesMap[stroke.pageIndex]) pagesMap[stroke.pageIndex] = [];
+                                pagesMap[stroke.pageIndex].push(stroke);
+                            });
+                            if (currentStroke) {
+                                if (!pagesMap[currentStroke.pageIndex]) pagesMap[currentStroke.pageIndex] = [];
+                                pagesMap[currentStroke.pageIndex].push(currentStroke);
+                            }
+
+                            return Object.entries(pagesMap).map(([pIdxStr, strokes]) => {
+                                const pageIdx = parseInt(pIdxStr);
+                                const pageEl = document.querySelector(`[data-testid="core__page-layer-${pageIdx}"]`);
+                                if (!pageEl) return null;
+
+                                const rect = pageEl.getBoundingClientRect();
+
+                                return createPortal(
+                                    <svg
+                                        key={`drawings-page-${pageIdx}`}
+                                        className="absolute inset-0 w-full h-full pointer-events-none"
+                                        style={{ zIndex: 45 }}
+                                        viewBox={`0 0 ${rect.width} ${rect.height}`}
+                                    >
+                                        {strokes.map((stroke, sIdx) => (
+                                            <path
+                                                key={stroke.id || sIdx}
+                                                d={pointsToSvgPath(stroke.points)}
+                                                stroke={stroke.color}
+                                                strokeWidth={stroke.width}
+                                                strokeOpacity={stroke.opacity || 0.45}
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                fill="none"
+                                                style={{ mixBlendMode: 'multiply' }}
+                                            />
+                                        ))}
+                                    </svg>,
+                                    pageEl
+                                );
+                            });
+                        })()}
 
                         {/* Rendering Text Items using Portals directly into Page Layers */}
                         {textItems.map((item) => {
@@ -1915,6 +2365,30 @@ function PDFViewerContent() {
                         </div>
                     )}
 
+
+                    {isMarkerMode && (
+                        <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-amber-600 text-white px-5 py-2.5 rounded-full border border-amber-400 shadow-2xl z-[70] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <Highlighter className="w-5 h-5 text-white animate-pulse" />
+                            <span className="font-bold text-xs sm:text-sm">
+                                قلم الماركر مفعّل: اسحب بالماوس فوق أي نص لتحديده وتظليله
+                            </span>
+                            <div
+                                className="w-4 h-4 rounded-full border-2 border-white shadow-xs shrink-0"
+                                style={{ backgroundColor: markerColor }}
+                                title="اللون المختار"
+                            />
+                            <div className="h-4 w-px bg-white/30 mx-0.5" />
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2.5 text-xs hover:bg-white/20 text-white font-bold"
+                                onClick={() => setIsMarkerMode(false)}
+                            >
+                                إنهاء
+                            </Button>
+                        </div>
+                    )}
+
                     {isTextMode && (
                         <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-full border border-blue-400 shadow-2xl z-[70] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
                             <Type className="w-5 h-5 text-white animate-pulse" />
@@ -1986,8 +2460,8 @@ function PDFViewerContent() {
                                                 key={groupId}
                                                 onClick={() => setSelectedSector(groupId)}
                                                 className={`text-xs font-black px-4 py-2 rounded-xl whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer ${isCurrent
-                                                        ? info.activeBtn
-                                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                    ? info.activeBtn
+                                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                                                     }`}
                                             >
                                                 <span>{info.label}</span>
@@ -2001,8 +2475,8 @@ function PDFViewerContent() {
                                     <button
                                         onClick={() => setSelectedSector('general')}
                                         className={`text-xs font-black px-4 py-2 rounded-xl whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer ${selectedSector === 'general'
-                                                ? 'bg-blue-600 text-white shadow-md'
-                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            ? 'bg-blue-600 text-white shadow-md'
+                                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                                             }`}
                                     >
                                         <span>التوقيع العام (الشخصي)</span>
@@ -2014,8 +2488,8 @@ function PDFViewerContent() {
                                 <button
                                     onClick={() => setSelectedSector('all')}
                                     className={`text-xs font-black px-4 py-2 rounded-xl whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer ${selectedSector === 'all'
-                                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
-                                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                        ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                                         }`}
                                 >
                                     <span>جميع التواقيع والأختام</span>
